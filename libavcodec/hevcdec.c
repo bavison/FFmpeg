@@ -23,8 +23,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <stdbool.h>
+
 #define _GNU_SOURCE
 #include <sys/syscall.h>
+#include <sys/time.h>
+#include <sys/times.h>
 #include <sys/types.h>
 #include <sched.h>
 #include <unistd.h>
@@ -248,6 +252,260 @@ static void rpi_hevc_qpu_set_fns(HEVCContext * const s, const unsigned int bit_d
 #endif
 
 
+static pthread_mutex_t threadlog_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+#define MAX_TIME (100*1000000)
+#define MAX_SNAPSHOTS 1000000
+#define MAX_THREADS 18
+
+typedef struct thread_journal
+{
+    struct thread_journal *next;
+    threadlog_thread_t type;
+    pthread_t self;
+    unsigned state_idx;
+} thread_journal_t;
+static struct
+{
+    unsigned last_thread_start_time;
+    bool finished;
+    thread_journal_t *thread;
+    unsigned state_idx;
+    unsigned snapshot_idx;
+    struct
+    {
+        unsigned time;
+        unsigned char state[MAX_THREADS];
+    } snapshot[MAX_SNAPSHOTS];
+} journal;
+
+static unsigned gettime_us(void)
+{
+    struct timeval now;
+    gettimeofday(&now, 0);
+    return now.tv_sec * 1000000 + now.tv_usec;
+}
+
+static void threadlog_final(void)
+{
+    struct tms tms;
+    times(&tms);
+
+    static unsigned real_time,
+                    running_time,
+                    wait_worker[2],
+                    wait_job_slot,
+                    wait_eof_join,
+                    wait_progress,
+                    wait_gpu,
+                    runnable[21],
+                    cumulative_runnable[21];
+
+    int i = 0;
+    unsigned last_period = 0;
+    while ((int) (journal.snapshot[i].time - journal.last_thread_start_time) < 0)
+    {
+        i++;
+    }
+    while (i < journal.snapshot_idx)
+    {
+        int runnable_threads = 0;
+        if (i > 0)
+            last_period = journal.snapshot[i].time - journal.snapshot[i-1].time;
+        for (thread_journal_t *t = journal.thread; t != NULL; t = t->next)
+        {
+            switch (journal.snapshot[i].state[t->state_idx])
+            {
+            case threadlog_reason_RUNNING:
+            case threadlog_reason_RUNNING_REF_CODING_TREE:
+            case threadlog_reason_RUNNING_SETUP:
+            case threadlog_reason_RUNNING_FLUSH:
+            case threadlog_reason_RUNNING_INTRA_PRED:
+            case threadlog_reason_RUNNING_DEBLOCK:
+                running_time += last_period;
+                runnable_threads++;
+                break;
+            case threadlog_reason_WAIT_FRAME_WORKER_THREAD:
+                wait_worker[0] += last_period;
+                break;
+            case threadlog_reason_WAIT_SECONDARY_WORKER:
+                wait_worker[1] += last_period;
+                break;
+            case threadlog_reason_PASS0_JOB_SLOT:
+                wait_job_slot += last_period;
+                break;
+            case threadlog_reason_END_OF_FRAME_JOIN:
+                wait_eof_join += last_period;
+                break;
+            case threadlog_reason_AWAIT_PROGRESS_PRED_L0:
+            case threadlog_reason_AWAIT_PROGRESS_PRED_L1:
+            case threadlog_reason_AWAIT_PROGRESS_MV_BOTTOM_RIGHT:
+            case threadlog_reason_AWAIT_PROGRESS_MV_CENTRE:
+            case threadlog_reason_AWAIT_PROGRESS_OTHER:
+                wait_progress += last_period;
+                break;
+            case threadlog_reason_WAIT_QPU:
+                wait_gpu += last_period;
+                break;
+            }
+        }
+        real_time += last_period;
+        runnable[runnable_threads] += last_period;
+        for (int t = 0; t <= runnable_threads; t++)
+            cumulative_runnable[t] += last_period;
+        i++;
+    }
+    FILE *f = fopen("ffmpeg-analysis.csv", "a");
+    if (f)
+    {
+        fprintf(f, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f",
+                 tms.tms_utime / 100.,
+                 tms.tms_stime / 100.,
+                 (tms.tms_utime + tms.tms_stime) / 100.,
+                 real_time / 1000000.,
+                 running_time / 1000000.,
+                 wait_worker[0] / 1000000.,
+                 wait_worker[1] / 1000000.,
+                 wait_job_slot / 1000000.,
+                 wait_eof_join / 1000000.,
+                 wait_progress / 1000000.,
+                 wait_gpu / 1000000.);
+        for (i = 0; i < sizeof runnable / sizeof *runnable; i++)
+            fprintf(f, ", %f", runnable[i] / 1000000.);
+        for (i = 0; i < sizeof runnable / sizeof *runnable; i++)
+            fprintf(f, ", %f", cumulative_runnable[i] / 1000000.);
+        fprintf(f, "\n");
+        fclose(f);
+    }
+}
+
+__thread threadlog_reason_t threadlog_progress_type = threadlog_reason_AWAIT_PROGRESS_OTHER;
+
+void threadlog_init(void)
+{
+	atexit(threadlog_final);
+}
+
+void threadlog_done(void)
+{
+    journal.finished = true;
+}
+
+static __thread threadlog_reason_t threadlog_state_stack[4];
+static __thread threadlog_reason_t *threadlog_state_sp;
+
+void threadlog_thread_start(int thread_type)
+{
+    threadlog_state_sp = threadlog_state_stack;
+    *threadlog_state_sp++ = threadlog_reason_RUNNING;
+
+    pthread_mutex_lock(&threadlog_mutex);
+
+    if (!journal.finished)
+    {
+        thread_journal_t *thread;
+        if (journal.state_idx == MAX_THREADS || (thread = malloc(sizeof *thread)) == NULL)
+            fprintf(stderr, "Warning: thread limit exceeded!\n");
+        else
+        {
+            /* Store in list, sorted by thread_type, at end of threads with matching thread_type */
+            thread_journal_t *prev = NULL;
+            if (journal.thread != NULL && journal.thread->type <= thread_type)
+            {
+                prev = journal.thread;
+                while (prev->next != NULL && prev->next->type <= thread_type)
+                    prev = prev->next;
+                thread->next = prev->next;
+                prev->next = thread;
+            }
+            else
+            {
+                thread->next = journal.thread;
+                journal.thread = thread;
+            }
+            thread->type = thread_type;
+            thread->self = pthread_self();
+            thread->state_idx = journal.state_idx++;
+            journal.last_thread_start_time = gettime_us();
+        }
+    }
+
+    pthread_mutex_unlock(&threadlog_mutex);
+}
+
+void threadlog_thread_end(int thread_type)
+{
+    pthread_mutex_lock(&threadlog_mutex);
+
+    if (!journal.finished)
+    {
+        /* Ignore threads that bow out early */
+        pthread_t self = pthread_self();
+        thread_journal_t *prev = NULL, *thread = journal.thread;
+        while (thread && thread->self != self)
+        {
+            prev = thread;
+            thread = thread->next;
+        }
+        if (thread)
+        {
+            if (prev)
+                prev->next = thread->next;
+            else
+                journal.thread = thread->next;
+        }
+    }
+
+    pthread_mutex_unlock(&threadlog_mutex);
+}
+
+void threadlog_update(int sleep_reason, int change)
+{
+	pthread_mutex_lock(&threadlog_mutex);
+
+    if (change > 0)
+        *++threadlog_state_sp = sleep_reason;
+    else
+        --threadlog_state_sp;
+
+    if (!journal.finished)
+    {
+        pthread_t self = pthread_self();
+        thread_journal_t *thread = journal.thread;
+        while (thread && thread->self != self)
+            thread = thread->next;
+        if (thread)
+        {
+            if (journal.snapshot_idx > 0)
+                memcpy(journal.snapshot[journal.snapshot_idx].state, journal.snapshot[journal.snapshot_idx - 1].state, sizeof journal.snapshot[0].state);
+            journal.snapshot[journal.snapshot_idx].state[thread->state_idx] = *threadlog_state_sp;
+            journal.snapshot[journal.snapshot_idx].time = gettime_us();
+            if (journal.snapshot[journal.snapshot_idx].time - journal.last_thread_start_time > MAX_TIME)
+                journal.finished = true;
+            if (++journal.snapshot_idx == MAX_SNAPSHOTS)
+            {
+                fprintf(stderr, "Warning: snapshot limit exceeded!\n");
+                journal.finished = true;
+            }
+        }
+    }
+
+	pthread_mutex_unlock(&threadlog_mutex);
+}
+
+void threadlog_timer_enable(int enable)
+{
+	if (!enable)
+	{
+		for (int i = 0; i < threadlog_reason_MAX; i++)
+			threadlog_update(i, 0);
+	}
+}
+
+
+
+
+
 #ifdef RPI_WORKER
 
 //#define LOG_ENTER printf("Enter %s: p0=%d p1=%d (%d jobs) %p\n", __func__,s->pass0_job,s->pass1_job,s->worker_tail-s->worker_head,s);
@@ -290,8 +548,10 @@ static void worker_pass0_ready(HEVCContext *s)
     LOG_ENTER
     HEVCRpiJob * const jb = s->jb0;
     if (jb->pending) {
+        threadlog_update(threadlog_reason_PASS0_JOB_SLOT, +1);
         while (sem_wait(&jb->sem_out) == -1 && errno == EINTR)
             /* Loop */;
+        threadlog_update(threadlog_reason_PASS0_JOB_SLOT, -1);
         jb->pending = 0;
     }
     LOG_EXIT
@@ -305,8 +565,10 @@ static void worker_wait(HEVCContext * const s)
     for (i = 0; i != RPI_MAX_JOBS; ++i) {
         HEVCRpiJob * const jb = s->jobs + i;
         if (jb->pending) {
+            threadlog_update(threadlog_reason_END_OF_FRAME_JOIN, +1);
             while (sem_wait(&jb->sem_out) == -1 && errno == EINTR)
                 /* Loop */;
+            threadlog_update(threadlog_reason_END_OF_FRAME_JOIN, -1);
             jb->pending = 0;
         }
     }
@@ -318,11 +580,15 @@ static void *worker_start(void *arg)
     HEVCContext * const s = (HEVCContext *)arg;
     s->avctx->internal->worker_tid[1] = syscall(SYS_gettid);
 
+    threadlog_thread_start(threadlog_thread_SECONDARY);
+
     for (;;)
     {
         HEVCRpiJob * const jb = s->jb1;
+        threadlog_update(threadlog_reason_WAIT_SECONDARY_WORKER, +1);
         while (sem_wait(&jb->sem_in) == -1 && errno == EINTR)
             /* Loop */;
+        threadlog_update(threadlog_reason_WAIT_SECONDARY_WORKER, -1);
         if (jb->terminate)
             break;
 
@@ -331,6 +597,7 @@ static void *worker_start(void *arg)
         worker_complete_job(s);
         LOG_EXIT
     }
+    threadlog_thread_end(threadlog_thread_SECONDARY);
     return NULL;
 }
 
@@ -2917,12 +3184,14 @@ static void hls_prediction_unit(HEVCContext * const s, const int x0, const int y
         ref0 = refPicList[0].ref[current_mv.ref_idx[0]];
         if (!ref0)
             return;
+        threadlog_progress_type = threadlog_reason_AWAIT_PROGRESS_PRED_L0;
         hevc_await_progress(s, ref0, &current_mv.mv[0], y0, nPbH);
     }
     if (current_mv.pred_flag & PF_L1) {
         ref1 = refPicList[1].ref[current_mv.ref_idx[1]];
         if (!ref1)
             return;
+        threadlog_progress_type = threadlog_reason_AWAIT_PROGRESS_PRED_L1;
         hevc_await_progress(s, ref1, &current_mv.mv[1], y0, nPbH);
     }
 
@@ -3837,6 +4106,7 @@ static void flush_frame(HEVCContext *s,AVFrame *frame)
 // Core execution tasks
 static void worker_core(HEVCContext * const s)
 {
+    threadlog_update(threadlog_reason_RUNNING_SETUP, +1);
 #if RPI_OPT_SEP_PRED
     vpu_qpu_wait_h sync_c;
 #endif
@@ -3902,9 +4172,12 @@ static void worker_core(HEVCContext * const s)
 #endif
 
     vpu_qpu_job_add_sync_this(vqj, &sync_y);
+    threadlog_update(threadlog_reason_RUNNING_SETUP, -1);
 
     // Having accumulated some commands - do them
+    threadlog_update(threadlog_reason_RUNNING_FLUSH, +1);
     rpi_cache_flush_finish(rfe);
+    threadlog_update(threadlog_reason_RUNNING_FLUSH, -1);
     vpu_qpu_job_finish(vqj);
 
     worker_pic_reset(&jb->coeffs);
@@ -3949,11 +4222,15 @@ static void worker_core(HEVCContext * const s)
     vpu_qpu_wait(&sync_y);
 
     // Perform intra prediction and residual reconstruction
+    threadlog_update(threadlog_reason_RUNNING_INTRA_PRED, +1);
     rpi_execute_pred_cmds(s);
+    threadlog_update(threadlog_reason_RUNNING_INTRA_PRED, -1);
 #endif
 
     // Perform deblocking for CTBs in this row
+    threadlog_update(threadlog_reason_RUNNING_DEBLOCK, +1);
     rpi_execute_dblk_cmds(s);
+    threadlog_update(threadlog_reason_RUNNING_DEBLOCK, -1);
 }
 
 static void rpi_do_all_passes(HEVCContext *s)
@@ -4012,6 +4289,8 @@ static int hls_decode_entry(AVCodecContext *avctxt, void *isFilterThread)
     rpi_begin(s);
 #endif
 
+    if (s->used_for_ref)
+        threadlog_update(threadlog_reason_RUNNING_REF_CODING_TREE, +1);
     while (more_data && ctb_addr_ts < s->ps.sps->ctb_size) {
         int ctb_addr_rs = s->ps.pps->ctb_addr_ts_to_rs[ctb_addr_ts];
 
@@ -4090,6 +4369,8 @@ static int hls_decode_entry(AVCodecContext *avctxt, void *isFilterThread)
 #endif
         ff_hevc_hls_filters(s, x_ctb, y_ctb, ctb_size);
     }
+    if (s->used_for_ref)
+        threadlog_update(threadlog_reason_RUNNING_REF_CODING_TREE, -1);
 
 #ifdef RPI
 

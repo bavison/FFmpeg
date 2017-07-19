@@ -162,6 +162,8 @@ static void async_unlock(FrameThreadContext *fctx)
     pthread_mutex_unlock(&fctx->async_mutex);
 }
 
+#include "libavcodec/hevcdec.h"
+
 /**
  * Codec worker thread.
  *
@@ -177,10 +179,15 @@ static attribute_align_arg void *frame_worker_thread(void *arg)
     avctx->internal->worker_tid[0] = syscall(SYS_gettid);
 
 
+    threadlog_thread_start(threadlog_thread_PRIMARY);
     pthread_mutex_lock(&p->mutex);
     while (1) {
         while (atomic_load(&p->state) == STATE_INPUT_READY && !p->die)
+        {
+            threadlog_update(threadlog_reason_WAIT_FRAME_WORKER_THREAD, +1);
             pthread_cond_wait(&p->input_cond, &p->mutex);
+            threadlog_update(threadlog_reason_WAIT_FRAME_WORKER_THREAD, -1);
+        }
 
         if (p->die) break;
 
@@ -236,6 +243,7 @@ static attribute_align_arg void *frame_worker_thread(void *arg)
         pthread_mutex_unlock(&p->progress_mutex);
     }
     pthread_mutex_unlock(&p->mutex);
+    threadlog_thread_end(threadlog_thread_PRIMARY);
 
     return NULL;
 }
@@ -631,7 +639,12 @@ void ff_thread_await_progress(ThreadFrame *f, int n, int field)
         av_log(f->owner[field], AV_LOG_DEBUG,
                "thread awaiting %d field %d from %p\n", n, field, progress);
     while (atomic_load_explicit(&progress[field], memory_order_relaxed) < n)
+    {
+        threadlog_update(threadlog_progress_type, +1);
         pthread_cond_wait(&p->progress_cond, &p->progress_mutex);
+        threadlog_update(threadlog_progress_type, -1);
+        threadlog_progress_type = threadlog_reason_AWAIT_PROGRESS_OTHER;
+    }
     pthread_mutex_unlock(&p->progress_mutex);
 }
 
@@ -691,6 +704,8 @@ void ff_frame_thread_free(AVCodecContext *avctx, int thread_count)
     FrameThreadContext *fctx = avctx->internal->thread_ctx;
     const AVCodec *codec = avctx->codec;
     int i;
+
+    threadlog_timer_enable(0);
 
     park_frame_worker_threads(fctx, thread_count);
 
@@ -867,6 +882,7 @@ int ff_frame_thread_init(AVCodecContext *avctx)
         if(!p->thread_init)
             goto error;
     }
+    threadlog_timer_enable(1);
 
     return 0;
 

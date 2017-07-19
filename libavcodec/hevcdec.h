@@ -972,4 +972,41 @@ extern void rpi_zap_coeff_vals_neon(int16_t * dst, unsigned int l2ts_m2);
 
 #endif
 
+typedef enum
+{
+    threadlog_reason_RUNNING,
+    threadlog_reason_RUNNING_REF_CODING_TREE,
+    threadlog_reason_RUNNING_SETUP,
+    threadlog_reason_RUNNING_FLUSH,
+    threadlog_reason_RUNNING_INTRA_PRED,
+    threadlog_reason_RUNNING_DEBLOCK,
+    threadlog_reason_RUNNING_MAX,
+    threadlog_reason_WAIT_FRAME_WORKER_THREAD,
+    threadlog_reason_WAIT_SECONDARY_WORKER,
+    threadlog_reason_PASS0_JOB_SLOT,
+    threadlog_reason_END_OF_FRAME_JOIN,
+    threadlog_reason_AWAIT_PROGRESS_PRED_L0,
+    threadlog_reason_AWAIT_PROGRESS_PRED_L1,
+    threadlog_reason_AWAIT_PROGRESS_MV_BOTTOM_RIGHT,
+    threadlog_reason_AWAIT_PROGRESS_MV_CENTRE,
+    threadlog_reason_AWAIT_PROGRESS_OTHER,
+    threadlog_reason_WAIT_QPU,
+    threadlog_reason_MAX
+} threadlog_reason_t;
+
+typedef enum
+{
+    threadlog_thread_PRIMARY,
+    threadlog_thread_SECONDARY,
+    threadlog_thread_MAX
+} threadlog_thread_t;
+
+extern __thread threadlog_reason_t threadlog_progress_type;
+void threadlog_init(void);
+void threadlog_done(void);
+void threadlog_thread_start(int thread_type);
+void threadlog_thread_end(int thread_type);
+void threadlog_update(int thread_type, int change);
+void threadlog_timer_enable(int enable);
+
 #endif /* AVCODEC_HEVCDEC_H */

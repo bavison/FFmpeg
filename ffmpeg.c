@@ -139,6 +139,8 @@
 
 #include "libavutil/avassert.h"
 
+#include "libavcodec/hevcdec.h"
+
 const char program_name[] = "ffmpeg";
 const int program_birth_year = 2000;
 
@@ -4932,6 +4934,8 @@ static int transcode(void)
         exit_program(1);
     }
 
+    threadlog_done();
+
     /* close each decoder */
     for (i = 0; i < nb_input_streams; i++) {
         ist = input_streams[i];
@@ -5021,6 +5025,8 @@ int main(int argc, char **argv)
 {
     int i, ret;
     int64_t ti;
+
+    threadlog_init();
 
     init_dynload();
 

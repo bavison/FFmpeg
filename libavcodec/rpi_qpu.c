@@ -19,6 +19,7 @@
 #include "rpi_hevc_transform8.h"
 #include "rpi_hevc_transform10.h"
 #include "libavutil/rpi_sand_fns.h"
+#include "hevcdec.h"
 
 #pragma GCC diagnostic push
 // Many many redundant decls in the header files
@@ -705,8 +706,10 @@ static void vq_wait_wait(vq_wait_t * const wait)
   }
 #endif
 
+  threadlog_update(threadlog_reason_WAIT_QPU, +1);
   while (sem_wait(&wait->sem) == -1 && errno == EINTR)
     /* loop */;
+  threadlog_update(threadlog_reason_WAIT_QPU, -1);
 }
 
 static void vq_wait_post(vq_wait_t * const wait)
