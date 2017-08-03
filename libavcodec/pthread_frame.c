@@ -495,10 +495,8 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
      * If we're still receiving the initial packets, don't return a frame.
      */
 
-    if (fctx->next_decoding > (avctx->thread_count-1-(avctx->codec_id == AV_CODEC_ID_FFV1)))
-        fctx->delaying = 0;
-
     if (fctx->delaying) {
+        fctx->delaying--;
         *got_picture_ptr=0;
         if (avpkt->size) {
             err = avpkt->size;
@@ -763,7 +761,7 @@ int ff_frame_thread_init(AVCodecContext *avctx)
     pthread_cond_init(&fctx->async_cond, NULL);
 
     fctx->async_lock = 1;
-    fctx->delaying = 1;
+    fctx->delaying = thread_count-1-(avctx->codec_id == AV_CODEC_ID_FFV1);
 
     for (i = 0; i < thread_count; i++) {
         AVCodecContext *copy = av_malloc(sizeof(AVCodecContext));
@@ -852,7 +850,7 @@ void ff_thread_flush(AVCodecContext *avctx)
     }
 
     fctx->next_decoding = fctx->next_finished = 0;
-    fctx->delaying = 1;
+    fctx->delaying = avctx->thread_count-1-(avctx->codec_id == AV_CODEC_ID_FFV1);
     fctx->prev_thread = NULL;
     for (i = 0; i < avctx->thread_count; i++) {
         PerThreadContext *p = &fctx->threads[i];
