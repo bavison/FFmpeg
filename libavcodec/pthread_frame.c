@@ -64,6 +64,13 @@ enum {
     STATE_SETUP_FINISHED,
 };
 
+typedef struct DoublyLinkedList {
+    struct DoublyLinkedList *next;
+    struct DoublyLinkedList *prev;
+} DoublyLinkedList;
+
+#define DOUBLY_LINKED_LIST_CONTAINER(type,member,dll_ptr) ((type*)((char*)(dll_ptr)-offsetof(type,member)))
+
 /**
  * Context used by codec threads and stored in their AVCodecInternal thread_ctx.
  */
@@ -106,6 +113,8 @@ typedef struct PerThreadContext {
 
     int hwaccel_serializing;
     int async_serializing;
+
+    DoublyLinkedList decode_order;
 } PerThreadContext;
 
 /**
@@ -125,9 +134,6 @@ typedef struct FrameThreadContext {
     pthread_cond_t async_cond;
     int async_lock;
 
-    int next_decoding;             ///< The next context to submit a packet to.
-    int next_finished;             ///< The next context to return output from.
-
     int delaying;                  /**<
                                     * Set for the first N packets, where N is the number of threads.
                                     * While it is set, ff_thread_en/decode_frame won't return any results.
@@ -141,6 +147,10 @@ typedef struct FrameThreadContext {
      * mutex to protect output_cond
      */
     pthread_mutex_t output_mutex;
+    /**
+     * head and tail of doubly-linked list of threads in order in which they started to decode
+     */
+    DoublyLinkedList decode_order;
 } FrameThreadContext;
 
 #define THREAD_SAFE_CALLBACKS(avctx) \
@@ -391,6 +401,16 @@ static void release_delayed_buffers(PerThreadContext *p)
     }
 }
 
+static void move_to_end(DoublyLinkedList *dll, DoublyLinkedList *head)
+{
+    dll->prev->next = dll->next;
+    dll->next->prev = dll->prev;
+    dll->prev = head->prev;
+    dll->prev->next = dll;
+    dll->next = head;
+    dll->next->prev = dll;
+}
+
 static int submit_packet(PerThreadContext *p, AVCodecContext *user_avctx,
                          AVPacket *avpkt)
 {
@@ -475,7 +495,6 @@ static int submit_packet(PerThreadContext *p, AVCodecContext *user_avctx,
     }
 
     fctx->prev_thread = p;
-    fctx->next_decoding++;
 
     return 0;
 }
@@ -485,8 +504,8 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
                            AVPacket *avpkt)
 {
     FrameThreadContext *fctx = avctx->internal->thread_ctx;
-    int finished = fctx->next_finished;
     PerThreadContext *p;
+    DoublyLinkedList *dll;
     int err;
 
     /* release the async lock, permitting blocked hwaccel threads to
@@ -497,7 +516,7 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
      * Submit a packet to the next decoding thread.
      */
 
-    p = &fctx->threads[fctx->next_decoding];
+    p = DOUBLY_LINKED_LIST_CONTAINER(PerThreadContext, decode_order, fctx->decode_order.prev);
     err = submit_packet(p, avctx, avpkt);
     if (err)
         goto finish;
@@ -510,6 +529,8 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
         fctx->delaying--;
         *got_picture_ptr=0;
         if (avpkt->size) {
+            p = DOUBLY_LINKED_LIST_CONTAINER(PerThreadContext, decode_order, fctx->decode_order.next);
+
             err = avpkt->size;
             goto finish;
         }
@@ -522,8 +543,9 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
      * EOF (avpkt->size == 0 && *got_picture_ptr == 0).
      */
 
+    dll = fctx->decode_order.next;
     do {
-        p = &fctx->threads[finished++];
+        p = DOUBLY_LINKED_LIST_CONTAINER(PerThreadContext, decode_order, dll);
 
         if (atomic_load(&p->state) != STATE_INPUT_READY) {
             pthread_mutex_lock(&fctx->output_mutex);
@@ -547,19 +569,18 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
          */
         p->got_frame = 0;
 
-        if (finished >= avctx->thread_count) finished = 0;
-    } while (!avpkt->size && !*got_picture_ptr && finished != fctx->next_finished);
+        dll = dll->next;
+    } while (!avpkt->size && !*got_picture_ptr && dll != &fctx->decode_order);
 
     update_context_from_thread(avctx, p->avctx, 1);
-
-    if (fctx->next_decoding >= avctx->thread_count) fctx->next_decoding = 0;
-
-    fctx->next_finished = finished;
 
     /* return the size of the consumed packet if no error occurred */
     if (err >= 0)
         err = avpkt->size;
 finish:
+    /* Move an unused thread to the end of the decode list, ready for the next call */
+    move_to_end(&p->decode_order, &fctx->decode_order);
+
     async_lock(fctx);
     return err;
 }
@@ -735,6 +756,7 @@ int ff_frame_thread_init(AVCodecContext *avctx)
     const AVCodec *codec = avctx->codec;
     AVCodecContext *src = avctx;
     FrameThreadContext *fctx;
+    DoublyLinkedList *dll_thread0;
     int i, err = 0;
 
 #if HAVE_W32THREADS
@@ -776,6 +798,8 @@ int ff_frame_thread_init(AVCodecContext *avctx)
 
     fctx->async_lock = 1;
     fctx->delaying = thread_count-1-(avctx->codec_id == AV_CODEC_ID_FFV1);
+
+    dll_thread0 = &fctx->threads[0].decode_order;
 
     for (i = 0; i < thread_count; i++) {
         AVCodecContext *copy = av_malloc(sizeof(AVCodecContext));
@@ -820,6 +844,10 @@ int ff_frame_thread_init(AVCodecContext *avctx)
                 err = codec->init(copy);
 
             update_context_from_thread(avctx, copy, 1);
+
+            /* Initialise decode order to contain only this thread */
+            fctx->decode_order.next = fctx->decode_order.prev = &p->decode_order;
+            p->decode_order.next = p->decode_order.prev = &fctx->decode_order;
         } else {
             copy->priv_data = av_malloc(codec->priv_data_size);
             if (!copy->priv_data) {
@@ -831,6 +859,15 @@ int ff_frame_thread_init(AVCodecContext *avctx)
 
             if (codec->init_thread_copy)
                 err = codec->init_thread_copy(copy);
+
+            if (avctx->codec_id != AV_CODEC_ID_FFV1 || i < thread_count-1)
+            {
+                /* Insert thread immediately before thread 0 the decode order list */
+                p->decode_order.prev = dll_thread0->prev;
+                dll_thread0->prev->next = &p->decode_order;
+                p->decode_order.next = dll_thread0;
+                dll_thread0->prev = &p->decode_order;
+            }
         }
 
         if (err) goto error;
@@ -862,7 +899,9 @@ void ff_thread_flush(AVCodecContext *avctx)
             update_context_from_thread(fctx->threads[0].avctx, fctx->prev_thread->avctx, 0);
     }
 
-    fctx->next_decoding = fctx->next_finished = 0;
+    /* Force thread 0 to the back of the decode order list so that it is the next one to be given a packet */
+    move_to_end(&fctx->threads[0].decode_order, &fctx->decode_order);
+
     fctx->delaying = avctx->thread_count-1-(avctx->codec_id == AV_CODEC_ID_FFV1);
     fctx->prev_thread = NULL;
     for (i = 0; i < avctx->thread_count; i++) {
