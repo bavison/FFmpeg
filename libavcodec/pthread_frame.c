@@ -499,13 +499,43 @@ static int submit_packet(PerThreadContext *p, AVCodecContext *user_avctx,
     return 0;
 }
 
+static PerThreadContext *find_ready_thread(FrameThreadContext *fctx)
+{
+    DoublyLinkedList *dll = fctx->decode_order.next;
+    while (dll != &fctx->decode_order)
+    {
+        PerThreadContext *p = DOUBLY_LINKED_LIST_CONTAINER(PerThreadContext, decode_order, dll);
+        if (atomic_load_explicit(&p->state, memory_order_relaxed) == STATE_INPUT_READY)
+            return p;
+        dll=  dll->next;
+    }
+    return NULL;
+}
+
+static void return_picture_from_thread(PerThreadContext *p, AVFrame *picture, int *got_picture_ptr, int *err)
+{
+    av_frame_move_ref(picture, p->frame);
+    *got_picture_ptr = p->got_frame;
+    picture->pkt_dts = p->avpkt.dts;
+
+    if (p->result < 0)
+        *err = p->result;
+
+    /*
+     * A later call with avkpt->size == 0 may loop over all threads,
+     * including this one, searching for a frame to return before being
+     * stopped by the "finished != fctx->next_finished" condition.
+     * Make sure we don't mistakenly return the same frame again.
+     */
+    p->got_frame = 0;
+}
+
 int ff_thread_decode_frame(AVCodecContext *avctx,
                            AVFrame *picture, int *got_picture_ptr,
                            AVPacket *avpkt)
 {
     FrameThreadContext *fctx = avctx->internal->thread_ctx;
     PerThreadContext *p;
-    DoublyLinkedList *dll;
     int err;
 
     /* release the async lock, permitting blocked hwaccel threads to
@@ -536,41 +566,42 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
         }
     }
 
-    /*
-     * Return the next available frame from the oldest thread.
-     * If we're at the end of the stream, then we have to skip threads that
-     * didn't output a frame, because we don't want to accidentally signal
-     * EOF (avpkt->size == 0 && *got_picture_ptr == 0).
-     */
-
-    dll = fctx->decode_order.next;
-    do {
-        p = DOUBLY_LINKED_LIST_CONTAINER(PerThreadContext, decode_order, dll);
-
-        if (atomic_load(&p->state) != STATE_INPUT_READY) {
-            pthread_mutex_lock(&fctx->output_mutex);
-            while (atomic_load_explicit(&p->state, memory_order_relaxed) != STATE_INPUT_READY)
-                pthread_cond_wait(&fctx->output_cond, &fctx->output_mutex);
-            pthread_mutex_unlock(&fctx->output_mutex);
-        }
-
-        av_frame_move_ref(picture, p->frame);
-        *got_picture_ptr = p->got_frame;
-        picture->pkt_dts = p->avpkt.dts;
-
-        if (p->result < 0)
-            err = p->result;
-
+    if (avpkt->size)
+    {
         /*
-         * A later call with avkpt->size == 0 may loop over all threads,
-         * including this one, searching for a frame to return before being
-         * stopped by the "finished != fctx->next_finished" condition.
-         * Make sure we don't mistakenly return the same frame again.
+         * Return the frame from the oldest thread that's ready to decode a new frame.
          */
-        p->got_frame = 0;
+        pthread_mutex_lock(&fctx->output_mutex);
+        while ((p = find_ready_thread(fctx)) == NULL)
+            pthread_cond_wait(&fctx->output_cond, &fctx->output_mutex);
+        pthread_mutex_unlock(&fctx->output_mutex);
 
-        dll = dll->next;
-    } while (!avpkt->size && !*got_picture_ptr && dll != &fctx->decode_order);
+        return_picture_from_thread(p, picture, got_picture_ptr, &err);
+    }
+    else
+    {
+        /*
+         * Return the next available frame from the oldest thread.
+         * If we're at the end of the stream, then we have to skip threads that
+         * didn't output a frame, because we don't want to accidentally signal
+         * EOF (avpkt->size == 0 && *got_picture_ptr == 0).
+         */
+        DoublyLinkedList *dll = fctx->decode_order.next;
+        do {
+            p = DOUBLY_LINKED_LIST_CONTAINER(PerThreadContext, decode_order, dll);
+
+            if (atomic_load(&p->state) != STATE_INPUT_READY) {
+                pthread_mutex_lock(&fctx->output_mutex);
+                while (atomic_load_explicit(&p->state, memory_order_relaxed) != STATE_INPUT_READY)
+                    pthread_cond_wait(&fctx->output_cond, &fctx->output_mutex);
+                pthread_mutex_unlock(&fctx->output_mutex);
+            }
+
+            return_picture_from_thread(p, picture, got_picture_ptr, &err);
+
+            dll = dll->next;
+        } while (!avpkt->size && !*got_picture_ptr && dll != &fctx->decode_order);
+    }
 
     update_context_from_thread(avctx, p->avctx, 1);
 
