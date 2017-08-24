@@ -23,6 +23,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#define _GNU_SOURCE
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <sched.h>
+#include <unistd.h>
+
 #include "libavutil/attributes.h"
 #include "libavutil/common.h"
 #include "libavutil/display.h"
@@ -310,6 +316,10 @@ static void worker_wait(HEVCContext * const s)
 static void *worker_start(void *arg)
 {
     HEVCContext * const s = (HEVCContext *)arg;
+    struct sched_param sched_param = { .sched_priority = 1 };
+    int result = sched_setscheduler(syscall(SYS_gettid), SCHED_FIFO, &sched_param);
+    if (result != 0)
+        perror("worker_start: sched_setscheduler");
 
     for (;;)
     {
