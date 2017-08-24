@@ -174,11 +174,8 @@ static attribute_align_arg void *frame_worker_thread(void *arg)
     PerThreadContext *p = arg;
     AVCodecContext *avctx = p->avctx;
     const AVCodec *codec = avctx->codec;
+    avctx->internal->worker_tid[0] = syscall(SYS_gettid);
 
-    struct sched_param sched_param = { .sched_priority = 1 };
-    int result = sched_setscheduler(syscall(SYS_gettid), SCHED_FIFO, &sched_param);
-    if (result != 0)
-        perror("frame_worker_thread: sched_setscheduler");
 
     pthread_mutex_lock(&p->mutex);
     while (1) {
@@ -480,6 +477,17 @@ static int submit_packet(PerThreadContext *p, AVCodecContext *user_avctx,
     return 0;
 }
 
+static void apply_sched_priority(AVCodecContext *avctx)
+{
+    struct sched_param sched_param = { .sched_priority = avctx->internal->sched_priority };
+    int result = sched_setscheduler(avctx->internal->worker_tid[0], SCHED_FIFO, &sched_param);
+    if (result != 0)
+        perror("promote worker thread 0");
+    result = sched_setscheduler(avctx->internal->worker_tid[1], SCHED_FIFO, &sched_param);
+    if (result != 0)
+        perror("promote worker thread 1");
+}
+
 int ff_thread_decode_frame(AVCodecContext *avctx,
                            AVFrame *picture, int *got_picture_ptr,
                            AVPacket *avpkt)
@@ -498,6 +506,24 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
      */
 
     p = &fctx->threads[fctx->next_decoding];
+    static int sched_priority = 32;
+    if (sched_priority == 0)
+    {
+        /* Can't assign such a low priority to the thread for the next frame.
+         * Promote all existing threads. */
+        int promoting = finished;
+        sched_priority = 32 - fctx->threads[finished].avctx->internal->sched_priority;
+        while (promoting != fctx->next_decoding)
+        {
+            fctx->threads[promoting].avctx->internal->sched_priority += sched_priority;
+            apply_sched_priority(fctx->threads[promoting].avctx);
+            promoting++;
+            if (promoting == avctx->thread_count) promoting = 0;
+        }
+    }
+    p->avctx->internal->sched_priority = sched_priority;
+    apply_sched_priority(p->avctx);
+    sched_priority--;
     err = submit_packet(p, avctx, avpkt);
     if (err)
         goto finish;

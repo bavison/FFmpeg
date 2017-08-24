@@ -176,6 +176,9 @@ typedef struct AVCodecInternal {
     int showed_multi_packet_warning;
 
     int skip_samples_multiplier;
+
+    pid_t worker_tid[2];
+    int sched_priority;
 } AVCodecInternal;
 
 struct AVCodecDefault {

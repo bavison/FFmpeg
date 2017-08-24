@@ -316,10 +316,7 @@ static void worker_wait(HEVCContext * const s)
 static void *worker_start(void *arg)
 {
     HEVCContext * const s = (HEVCContext *)arg;
-    struct sched_param sched_param = { .sched_priority = 1 };
-    int result = sched_setscheduler(syscall(SYS_gettid), SCHED_FIFO, &sched_param);
-    if (result != 0)
-        perror("worker_start: sched_setscheduler");
+    s->avctx->internal->worker_tid[1] = syscall(SYS_gettid);
 
     for (;;)
     {
