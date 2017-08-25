@@ -178,7 +178,8 @@ typedef struct AVCodecInternal {
     int skip_samples_multiplier;
 
     pid_t worker_tid[2];
-    int sched_priority;
+    int sched_base_priority;
+    int sched_priority_offset;
 } AVCodecInternal;
 
 struct AVCodecDefault {

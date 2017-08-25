@@ -4550,6 +4550,8 @@ static int decode_nal_unit(HEVCContext *s, const H2645NAL *nal)
                         s->nal_unit_type == HEVC_NAL_STSA_N  ||
                         s->nal_unit_type == HEVC_NAL_RADL_N  ||
                         s->nal_unit_type == HEVC_NAL_RASL_N);
+        s->avctx->internal->sched_priority_offset = s->used_for_ref * 32;
+        ff_thread_apply_sched_priority(s->avctx);
 
 #if DEBUG_DECODE_N
         {

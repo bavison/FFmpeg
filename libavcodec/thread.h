@@ -48,6 +48,8 @@ typedef struct ThreadFrame {
  */
 void ff_thread_flush(AVCodecContext *avctx);
 
+void ff_thread_apply_sched_priority(AVCodecContext *avctx);
+
 /**
  * Submit a new frame to a decoding thread.
  * Returns the next available frame in picture. *got_picture_ptr
