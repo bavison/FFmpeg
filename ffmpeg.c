@@ -140,6 +140,7 @@
 #include "libavutil/avassert.h"
 
 #include "libavcodec/hevcdec.h"
+#include "google/profiler.h"
 
 const char program_name[] = "ffmpeg";
 const int program_birth_year = 2000;
@@ -732,6 +733,8 @@ const AVIOInterruptCB int_cb = { decode_interrupt_cb, NULL };
 static void ffmpeg_cleanup(int ret)
 {
     int i, j;
+
+    ProfilerStop();
 
     if (do_benchmark) {
         int maxrss = getmaxrss() / 1024;
@@ -5021,11 +5024,21 @@ static void log_callback_null(void *ptr, int level, const char *fmt, va_list vl)
 {
 }
 
+static int filter(void *arg)
+{
+  return 1;
+}
+
+static struct ProfilerOptions gperftools_options = { filter, NULL };
+
 int main(int argc, char **argv)
 {
     int i, ret;
     int64_t ti;
 
+    /* Don't run profiler unless enabled by env var - it skews timing results too much */
+    if (getenv("FFMPEG_PROFILE") != NULL)
+        ProfilerStartWithOptions("/home/pi/ffmpeg.prof", &gperftools_options);
     threadlog_init();
 
     init_dynload();
