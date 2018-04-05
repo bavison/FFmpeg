@@ -467,7 +467,7 @@ function hevc_loop_filter_luma_body
         m_filter_luma 8
 endfunc
 
-@ void ff_hevc_rpi_v_loop_filter_luma_neon(
+@ void ff_hevc_rpi_v_loop_filter_luma_neon_8(
 @   uint8_t *_pix,      [r0]
 @   ptrdiff_t _stride,  [r1]
 @   int _beta,          [r2]
@@ -475,7 +475,7 @@ endfunc
 @   uint8_t *_no_p,     [sp+0]
 @   uint8_t *_no_q)     [sp+4]
 
-function ff_hevc_rpi_v_loop_filter_luma_neon, export=1
+function ff_hevc_rpi_v_loop_filter_luma_neon_8, export=1
         hevc_loop_filter_luma_start
 
         sub      r4, r0, #4
@@ -560,7 +560,7 @@ function ff_hevc_rpi_v_loop_filter_luma2_neon_8, export=1
         pop      {r4-r10,pc}
 endfunc
 
-.macro m_filter_v_luma_common_16 bit_depth
+.macro m_filter_v_luma_16 bit_depth
         vpush    {d8-d15}
 
         @ Uses slightly fewer instructions to do laned loads than unlaned
@@ -630,7 +630,7 @@ endfunc
 @
 @ Src should always be on 8 byte boundry & all in the same slice
 
-function ff_hevc_rpi_h_loop_filter_luma_neon, export=1
+function ff_hevc_rpi_h_loop_filter_luma_neon_8, export=1
         hevc_loop_filter_luma_start
         b        .Lh_loop_filter_luma_common_8
 endfunc
@@ -1236,7 +1236,7 @@ function ff_hevc_rpi_v_loop_filter_luma2_neon_10, export=1
         ldr      r10, [sp, #32]
 
 .Lv_loop_luma_common_10:
-        m_filter_v_luma_common_16 10
+        m_filter_v_luma_16 10
 endfunc
 
 function ff_hevc_rpi_h_loop_filter_uv_neon_10, export=1
