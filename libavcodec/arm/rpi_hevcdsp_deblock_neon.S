@@ -45,42 +45,39 @@
 .endm
 
 
-.macro hevc_loop_filter_uv_body2 P1u, P1v, P0u, P0v, Q0u, Q0v, Q1u, Q1v
-        vsubl.u8  q0, \Q0u, \P0u
-        vsubl.u8  q1, \Q0v, \P0v
-        vsubl.u8  q2, \P1u, \Q1u
-        vsubl.u8  q3, \P1v, \Q1v
-        vshl.i16  q0, #2
-        vshl.i16  q1, #2
-        vadd.i16  q0, q2
-        vdup.16   d4, r2
-        lsr       r2, #16
-        vadd.i16  q1, q3
-
-        vrshr.s16 q0, #3
-        vdup.16   d6, r2
-        vmovl.u8  q2, d4
-        vmovl.u8  q3, d6
-        vrshr.s16 q1, #3
-
+.macro hevc_loop_filter_uv_body2 P1u, P1v, P0u, P0v, Q0u, Q0v, Q1u, Q1v, I1
+        vsubl.u8  q0, \Q0u, \P0u  @ q0u - p0u
+        lsr       r12, r2, #16
+        vsubl.u8  q1, \Q0v, \P0v  @ q0v - p0v
+        vsubl.u8  q2, \P1u, \Q1u  @ p1u - q1u
+        vsubl.u8  q3, \P1v, \Q1v  @ p1v - q1v
+        vshl.i16  q0, #2          @ (q0u - p0u) * 4
+        vshl.i16  q1, #2          @ (q0v - p0v) * 4
+        vadd.i16  q0, q2          @ ((q0u - p0u) * 4) + p1u - q1u
+        vadd.i16  q1, q3          @ ((q0v - p0v) * 4) + p1v - q1v
+        vdup.16   d4, r2          @ tc0u, tc0v
+        vdup.16   d6, r12         @ tc1u, tc1v
+        vrshr.s16 q0, #3          @ (((q0u - p0u) * 4) + p1u - q1u + 4) >> 3
+        vrshr.s16 q1, #3          @ (((q0v - p0v) * 4) + p1v - q1v + 4) >> 3
+        vmovl.u8  q2, d4          @ tc0u, tc0v
+        vmovl.u8  q3, d6          @ tc1u, tc1v
         vmin.s16  q0, q2
-        vneg.s16  q2, q2
+        vneg.s16  q2, q2          @ -tc0u, -tc0v
         vmin.s16  q1, q3
-        vneg.s16  q3, q3
-        vmax.s16  q0, q2
-        vaddw.u8  q2, q0, \P0u
-        vmax.s16  q1, q3
-        vaddw.u8  q3, q1, \P0v
-
-        vqmovun.s16 \P0u, q2
+        vneg.s16  q3, q3          @ -tc1u, -tc1v
+        vmax.s16  q0, q2          @ delta0u
         vmovl.u8  q2, \Q0u
-        vqmovun.s16 \P0v, q3
-        vmovl.u8  q3, \Q0v
-        vsub.i16  q2, q0
-        vsub.i16  q3, q1
-
-        vqmovun.s16 \Q0u, q2
-        vqmovun.s16 \Q0v, q3
+        vmax.s16  q1, q3          @ delta0v
+        vaddw.u8  q3, q0, \P0u    @ p0u + delta0u
+        vsub.i16  q0, q2, q0      @ q0u - delta0u
+        vmovl.u8  q2, \Q0v
+        vsub.i16  q2, q1          @ q0v - delta0v
+        vaddw.u8  q1, \P0v        @ p0v + delta0v
+        vqmovun.s16 \Q0u, q0
+        vqmovun.s16 \P0u, q3
+        vqmovun.s16 \Q0v, q2
+        \I1
+        vqmovun.s16 \P0v, q1
 .endm
 
 
@@ -707,23 +704,25 @@ endfunc
 @ common in the H direction than V due to how we arrange deblock.
 
 function ff_hevc_rpi_h_loop_filter_uv_neon_8, export=1
+        sub      r12, r0, r1
+        lsl      r1, #1
         cmp      r2, #0
         bxeq     lr
-        sub      r0, r0, r1, lsl #1
+        vld1.8   {d26,d27}, [r0]
+        sub      r0, r1
+        vld1.8   {d18,d19}, [r12], r1
         vld1.8   {d16,d17}, [r0], r1
-        vld1.8   {d18,d19}, [r0], r1
-        vld1.8   {d26,d27}, [r0], r1
-        vld1.8   {d28,d29}, [r0]
-        sub      r0, r0, r1, lsl #1
-        hevc_loop_filter_uv_body2 d16, d17, d18, d19, d26, d27, d28, d29
+        vld1.8   {d28,d29}, [r12]
 
-        lsls     r2, r3, #31            @ b0 -> N, b1 -> C
-        vstrpl   d18, [r0, #0]
-        vstrcc   d19, [r0, #8]
-        add      r0, r1
+        hevc_loop_filter_uv_body2 d16, d17, d18, d19, d26, d27, d28, d29, \
+        "sub      r12, r0, r1, asr #1"
+
         lsls     r3, #29                @ b2 -> N, b3 -> C
         vstrpl   d26, [r0, #0]
         vstrcc   d27, [r0, #8]
+        lsls     r3, #2                 @ b0 -> N, b1 -> C
+        vstrpl   d18, [r12, #0]
+        vstrcc   d19, [r12, #8]
         bx       lr
 
 endfunc
