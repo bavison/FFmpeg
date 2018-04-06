@@ -789,6 +789,7 @@ endfunc
 function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
         cmp      r2, #0
         bxeq     lr
+        push     {lr}
         vld2.16  {d16[0], d18[0]}, [r3], r1
         vld2.16  {d20[0], d22[0]}, [r0], r1
 
@@ -817,7 +818,7 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
         vld2.16  {d17[3], d19[3]}, [r3]
         vld2.16  {d21[3], d23[3]}, [r0]
         it eq
-        ldreq    r12, [sp, #0]
+        ldreq    r12, [sp, #4]
 
         hevc_loop_filter_uv_body2 d16, d17, d18, d19, d20, d21, d22, d23
         cmp      r12, #0
@@ -835,11 +836,11 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
         vst2.16   {d18[2], d20[2]}, [r3], r1
         vst2.16   {d18[1], d20[1]}, [r3], r1
         vst2.16   {d18[0], d20[0]}, [r3]
-        bx       lr
+        pop       {pc}
 
 @ Either split or partial
 1:
-        ldr      r12, [sp, #0]
+        ldr      r12, [sp, #4]
         @ I have no idea if this is faster than any of the other ways of
         @ testing these bits but it does free up r12
         lsl      r12, #28
@@ -870,12 +871,12 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
 
 3:
         it vs
-        bxvs     lr
+        popvs    {pc}
         vst1.16  {d18[3]}, [r12], r1
         vst1.16  {d18[2]}, [r12], r1
         vst1.16  {d18[1]}, [r12], r1
         vst1.16  {d18[0]}, [r12]
-        bx       lr
+        pop      {pc}
 
 @ Single lump (rather than double)
 10:
@@ -883,7 +884,7 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
 
         @ As we have post inced r0/r3 in the load the easiest thing to do is
         @ to subtract and write forwards, rather than backwards (as above)
-        ldr      r12, [sp, #0]
+        ldr      r12, [sp, #4]
         add      r3, #2
         sub      r0, r0, r1, lsl #2
         sub      r3, r3, r1, lsl #2
@@ -897,12 +898,12 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
 
 3:
         it mi
-        bxmi     lr
+        popmi    {pc}
         vst1.16  {d18[0]}, [r3], r1
         vst1.16  {d18[1]}, [r3], r1
         vst1.16  {d18[2]}, [r3], r1
         vst1.16  {d18[3]}, [r3]
-        bx       lr
+        pop      {pc}
 
 endfunc
 
