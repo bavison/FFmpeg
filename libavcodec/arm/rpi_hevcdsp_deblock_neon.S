@@ -804,11 +804,11 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
         vld2.16  {d20[3], d22[3]}, [r0], r1
         blo      10f
 
-        sub      r12, r0, r3
+        sub      lr, r0, r3
         vld2.16  {d17[0], d19[0]}, [r3], r1
         vld2.16  {d21[0], d23[0]}, [r0], r1
 
-        cmp      r12, #4
+        cmp      lr, #4
         vld2.16  {d17[1], d19[1]}, [r3], r1
         vld2.16  {d21[1], d23[1]}, [r0], r1
 
@@ -818,10 +818,10 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
         vld2.16  {d17[3], d19[3]}, [r3]
         vld2.16  {d21[3], d23[3]}, [r0]
         it eq
-        ldreq    r12, [sp, #4]
+        ldreq    lr, [sp, #4]
 
         hevc_loop_filter_uv_body2 d16, d17, d18, d19, d20, d21, d22, d23
-        cmp      r12, #0
+        cmp      lr, #0
         add      r3, #2
         neg      r1, r1
         bne      1f
@@ -840,13 +840,13 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
 
 @ Either split or partial
 1:
-        ldr      r12, [sp, #4]
+        ldr      lr, [sp, #4]
         @ I have no idea if this is faster than any of the other ways of
-        @ testing these bits but it does free up r12
-        lsl      r12, #28
+        @ testing these bits but it does free up lr
+        lsl      lr, #28
         add      r2, r0, r1, lsl #2
-        msr      APSR_nzcvq, r12        @ b0 (P0a) -> V, b1 (Q0a) -> C, b2 (P0b) -> Z, b3 (Q0b) -> N
-        add      r12, r3, r1, lsl #2
+        msr      APSR_nzcvq, lr        @ b0 (P0a) -> V, b1 (Q0a) -> C, b2 (P0b) -> Z, b3 (Q0b) -> N
+        add      lr, r3, r1, lsl #2
         bmi      1f
         @ Q0b
         vst1.16  {d21[3]}, [r0], r1
@@ -872,10 +872,10 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
 3:
         it vs
         popvs    {pc}
-        vst1.16  {d18[3]}, [r12], r1
-        vst1.16  {d18[2]}, [r12], r1
-        vst1.16  {d18[1]}, [r12], r1
-        vst1.16  {d18[0]}, [r12]
+        vst1.16  {d18[3]}, [lr], r1
+        vst1.16  {d18[2]}, [lr], r1
+        vst1.16  {d18[1]}, [lr], r1
+        vst1.16  {d18[0]}, [lr]
         pop      {pc}
 
 @ Single lump (rather than double)
@@ -884,11 +884,11 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
 
         @ As we have post inced r0/r3 in the load the easiest thing to do is
         @ to subtract and write forwards, rather than backwards (as above)
-        ldr      r12, [sp, #4]
+        ldr      lr, [sp, #4]
         add      r3, #2
         sub      r0, r0, r1, lsl #2
         sub      r3, r3, r1, lsl #2
-        lsls     r12, #31               @ b0 (P0a) -> N, b1 (Q0a) -> C
+        lsls     lr, #31               @ b0 (P0a) -> N, b1 (Q0a) -> C
 
         bcs      3f
         vst1.16  {d20[0]}, [r0], r1
