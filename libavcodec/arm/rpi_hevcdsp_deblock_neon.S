@@ -22,62 +22,72 @@
 #include "libavutil/arm/asm.S"
 #include "neon.S"
 
-.macro hevc_loop_filter_uv_body1 P1a, P0a, Q0a, Q1a
+.macro hevc_loop_filter_uv_body1 P1a, P0a, Q0a, Q1a, I1, I2, I3, I4, I5, I6, I7, I8
         vsubl.u8  q0, \Q0a, \P0a
-        vsubl.u8  q2, \P1a, \Q1a
-        vshl.i16  q0, #2
-        vadd.i16  q0, q2
+        vsubl.u8  q1, \P1a, \Q1a
         vdup.16   d4, r2
-
-        vrshr.s16 q0, #3
+        \I1
+        vshl.i16  q0, #2
+        \I2
+        vadd.i16  q0, q1
+        \I3
         vmovl.u8  q2, d4
-
+        \I4
+        vneg.s16  q1, q2
+        \I5
+        vrshr.s16 q0, #3
+        \I6
+        \I7
+        \I8
         vmin.s16  q0, q2
-        vneg.s16  q2, q2
-        vmax.s16  q0, q2
-        vaddw.u8  q2, q0, \P0a
-
-        vqmovun.s16 \P0a, q2
         vmovl.u8  q2, \Q0a
-        vsub.i16  q2, q0
-
-        vqmovun.s16 \Q0a, q2
+        vmax.s16  q0, q1
+        vaddw.u8  q1, q0, \P0a
+        vsub.i16  q0, q2, q0
+        vqmovun.s16 \P0a, q1
+        vqmovun.s16 \Q0a, q0
 .endm
 
 
-.macro hevc_loop_filter_uv_body2 P1u, P1v, P0u, P0v, Q0u, Q0v, Q1u, Q1v, I1
-        vsubl.u8  q0, \Q0u, \P0u  @ q0u - p0u
+.macro hevc_loop_filter_uv_body2 P1a, P1b, P0a, P0b, Q0a, Q0b, Q1a, Q1b, I1, I2, I3, I4, I5, I6, I7
+        vsubl.u8  q0, \Q0a, \P0a  @ q0a - p0a
         lsr       r12, r2, #16
-        vsubl.u8  q1, \Q0v, \P0v  @ q0v - p0v
-        vsubl.u8  q2, \P1u, \Q1u  @ p1u - q1u
-        vsubl.u8  q3, \P1v, \Q1v  @ p1v - q1v
-        vshl.i16  q0, #2          @ (q0u - p0u) * 4
-        vshl.i16  q1, #2          @ (q0v - p0v) * 4
-        vadd.i16  q0, q2          @ ((q0u - p0u) * 4) + p1u - q1u
-        vadd.i16  q1, q3          @ ((q0v - p0v) * 4) + p1v - q1v
-        vdup.16   d4, r2          @ tc0u, tc0v
-        vdup.16   d6, r12         @ tc1u, tc1v
-        vrshr.s16 q0, #3          @ (((q0u - p0u) * 4) + p1u - q1u + 4) >> 3
-        vrshr.s16 q1, #3          @ (((q0v - p0v) * 4) + p1v - q1v + 4) >> 3
-        vmovl.u8  q2, d4          @ tc0u, tc0v
-        vmovl.u8  q3, d6          @ tc1u, tc1v
-        vmin.s16  q0, q2
-        vneg.s16  q2, q2          @ -tc0u, -tc0v
-        vmin.s16  q1, q3
-        vneg.s16  q3, q3          @ -tc1u, -tc1v
-        vmax.s16  q0, q2          @ delta0u
-        vmovl.u8  q2, \Q0u
-        vmax.s16  q1, q3          @ delta0v
-        vaddw.u8  q3, q0, \P0u    @ p0u + delta0u
-        vsub.i16  q0, q2, q0      @ q0u - delta0u
-        vmovl.u8  q2, \Q0v
-        vsub.i16  q2, q1          @ q0v - delta0v
-        vaddw.u8  q1, \P0v        @ p0v + delta0v
-        vqmovun.s16 \Q0u, q0
-        vqmovun.s16 \P0u, q3
-        vqmovun.s16 \Q0v, q2
+        vsubl.u8  q1, \Q0b, \P0b  @ q0b - p0b
+        vsubl.u8  q2, \P1a, \Q1a  @ p1a - q1a
+        vsubl.u8  q3, \P1b, \Q1b  @ p1b - q1b
+        vshl.i16  q0, #2          @ (q0a - p0a) * 4
+        vshl.i16  q1, #2          @ (q0b - p0b) * 4
+        vadd.i16  q0, q2          @ ((q0a - p0a) * 4) + p1a - q1a
+        vadd.i16  q1, q3          @ ((q0b - p0b) * 4) + p1b - q1b
+        vdup.16   d4, r2          @ tc0a, tc0b
+        vdup.16   d6, r12         @ tc1a, tc1b
+        vrshr.s16 q0, #3          @ (((q0a - p0a) * 4) + p1a - q1a + 4) >> 3
         \I1
-        vqmovun.s16 \P0v, q1
+        vrshr.s16 q1, #3          @ (((q0b - p0b) * 4) + p1b - q1b + 4) >> 3
+        \I2
+        vmovl.u8  q2, d4          @ tc0a, tc0b
+        \I3
+        vmovl.u8  q3, d6          @ tc1a, tc1b
+        \I4
+        vmin.s16  q0, q2
+        \I5
+        vneg.s16  q2, q2          @ -tc0a, -tc0b
+        \I6
+        vmin.s16  q1, q3
+        \I7
+        vneg.s16  q3, q3          @ -tc1a, -tc1b
+        vmax.s16  q0, q2          @ delta0a
+        vmovl.u8  q2, \Q0a
+        vmax.s16  q1, q3          @ delta0b
+        vaddw.u8  q3, q0, \P0a    @ p0a + delta0a
+        vsub.i16  q0, q2, q0      @ q0a - delta0a
+        vmovl.u8  q2, \Q0b
+        vsub.i16  q2, q1          @ q0b - delta0b
+        vaddw.u8  q1, \P0b        @ p0b + delta0b
+        vqmovun.s16 \Q0a, q0
+        vqmovun.s16 \P0a, q3
+        vqmovun.s16 \Q0b, q2
+        vqmovun.s16 \P0b, q1
 .endm
 
 
@@ -88,33 +98,36 @@
 @   [0..7]   tc U a
 @   [8..15]  tc V a
 
-.macro hevc_loop_filter_uv_body1_16 P1a, P0a, Q0a, Q1a, bit_depth
+.macro hevc_loop_filter_uv_body1_16 P1a, P0a, Q0a, Q1a, bit_depth, I1, I2, I3, I4, I5, I6, I7, I8
         vsub.i16  q0, \Q0a, \P0a
-        vsub.i16  q2, \P1a, \Q1a
-        vshl.i16  q0, #2
-        vadd.i16  q0, q2
-        vrshr.s16 q0, #3
-
+        vsub.i16  q1, \P1a, \Q1a
         vdup.16   d4, r2
+        \I1
+        vshl.i16  q0, #2
+        \I2
+        vadd.i16  q0, q1
+        \I3
         vshll.u8  q2, d4, #\bit_depth - 8
-
-        movw      r2, #(1 << \bit_depth) - 1
+        \I4
+        vneg.s16  q1, q2
+        \I5
+        vrshr.s16 q0, #3
+        \I6
+        \I7
+        \I8
         vmin.s16  q0, q2
-        vneg.s16  q2, q2
-        vmax.s16  q0, q2
-        vmov.i64  q2, #0
-        vdup.i16  q3, r2
+        vmov.i16  q2, #0
+        vmax.s16  q0, q1
         vadd.i16  \P0a, q0
         vsub.i16  \Q0a, q0
-
+        vmov.i16  q1, #(1 << \bit_depth) - 1
         vmax.s16  \P0a, q2
         vmax.s16  \Q0a, q2
-        vmin.s16  \P0a, q3
-        vmin.s16  \Q0a, q3
+        vmin.s16  \P0a, q1
+        vmin.s16  \Q0a, q1
 .endm
 
-@ Preserves r12
-@ Clobbers r2
+@ Clobbers r2, r12
 @ P0a et al all contain UVUVUVUV
 @ r2 (tc4) contains
 @   [0..7]   tc U a
@@ -122,38 +135,41 @@
 @  [16..23]  tc U b
 @  [24..31]  tc V b
 
-.macro hevc_loop_filter_uv_body2_16 P1a, P1b, P0a, P0b, Q0a, Q0b, Q1a, Q1b, bit_depth
-        vsub.i16  q0, \Q0a, \P0a
-        vsub.i16  q1, \Q0b, \P0b
-        vsub.i16  q2, \P1a, \Q1a
-        vsub.i16  q3, \P1b, \Q1b
-        vshl.i16  q0, #2
-        vshl.i16  q1, #2
-        vadd.i16  q0, q2
-        vrshr.s16 q0, #3
-        vadd.i16  q1, q3
-        vrshr.s16 q1, #3
-
-        vdup.16   d4, r2
-        lsr       r2, #16
-        vdup.16   d6, r2
-        vshll.u8  q2, d4, #\bit_depth - 8
-        vshll.u8  q3, d6, #\bit_depth - 8
-
-        movw      r2, #(1 << \bit_depth) - 1
+.macro hevc_loop_filter_uv_body2_16 P1a, P1b, P0a, P0b, Q0a, Q0b, Q1a, Q1b, bit_depth, I1, I2, I3, I4, I5, I6, I7
+        vsub.i16  q0, \Q0a, \P0a  @ q0a - p0a
+        lsr       r12, r2, #16
+        vsub.i16  q1, \Q0b, \P0b  @ q0b - p0b
+        vsub.i16  q2, \P1a, \Q1a  @ p1a - q1a
+        vsub.i16  q3, \P1b, \Q1b  @ p1b - q1b
+        vshl.i16  q0, #2          @ (q0a - p0a) * 4
+        vshl.i16  q1, #2          @ (q0b - p0b) * 4
+        vadd.i16  q0, q2          @ ((q0a - p0a) * 4) + p1a - q1a
+        vadd.i16  q1, q3          @ ((q0b - p0b) * 4) + p1b - q1b
+        vdup.16   d4, r2          @ tc0a, tc0b
+        vdup.16   d6, r12         @ tc1a, tc1b
+        vrshr.s16 q0, #3          @ (((q0a - p0a) * 4) + p1a - q1a + 4) >> 3
+        \I1
+        vrshr.s16 q1, #3          @ (((q0b - p0b) * 4) + p1b - q1b + 4) >> 3
+        \I2
+        vshll.u8  q2, d4, #\bit_depth - 8 @ tc0a, tc0b
+        \I3
+        vshll.u8  q3, d6, #\bit_depth - 8 @ tc1a, tc1b
+        \I4
         vmin.s16  q0, q2
-        vneg.s16  q2, q2
+        \I5
+        vneg.s16  q2, q2          @ -tc0a, -tc0b
+        \I6
         vmin.s16  q1, q3
-        vneg.s16  q3, q3
-        vmax.s16  q0, q2
-        vmov.i64  q2, #0
-        vmax.s16  q1, q3
-        vdup.i16  q3, r2
-        vadd.i16  \P0a, q0
-        vsub.i16  \Q0a, q0
-        vadd.i16  \P0b, q1
-        vsub.i16  \Q0b, q1
-
+        \I7
+        vneg.s16  q3, q3          @ -tc1a, -tc1b
+        vmax.s16  q0, q2          @ delta0a
+        vadd.i16  \P0a, q0        @ p0a + delta0a
+        vsub.i16  \Q0a, q0        @ q0a - delta0a
+        vmax.s16  q1, q3          @ delta0b
+        vadd.i16  \P0b, q1        @ p0b + delta0b
+        vsub.i16  \Q0b, q1        @ q0b - delta0b
+        vmov.i16  q2, #0
+        vmov.i16  q3, #(1 << \bit_depth) - 1
         vmax.s16  \P0a, q2
         vmax.s16  \Q0a, q2
         vmax.s16  \P0b, q2
@@ -705,10 +721,10 @@ endfunc
 
 function ff_hevc_rpi_h_loop_filter_uv_neon_8, export=1
         sub      r12, r0, r1
-        lsl      r1, #1
         cmp      r2, #0
         bxeq     lr
         vld1.8   {d26,d27}, [r0]
+        lsl      r1, #1
         sub      r0, r1
         vld1.8   {d18,d19}, [r12], r1
         vld1.8   {d16,d17}, [r0], r1
@@ -738,37 +754,38 @@ endfunc
 @ Macro here actual function near bottom
 
 .macro m_filter_h_uv_16 bit_depth
+        sub      r12, r0, r1
         cmp      r2, #0
         bxeq     lr
-        sub      r0, r0, r1, lsl #1
+        vld1.16  {q12, q13}, [r0]
+        lsl      r1, #1
+        sub      r0, r1
+        vld1.16  {q10, q11}, [r12], r1
         vld1.16  {q8,  q9 }, [r0], r1
-        vld1.16  {q10, q11}, [r0], r1
-        vld1.16  {q12, q13}, [r0], r1
-        vld1.16  {q14, q15}, [r0]
-        sub      r0, r0, r1, lsl #1
+        vld1.16  {q14, q15}, [r12]
 
-        hevc_loop_filter_uv_body2_16 q8, q9, q10, q11, q12, q13, q14, q15, \bit_depth
+        hevc_loop_filter_uv_body2_16  q8, q9, q10, q11, q12, q13, q14, q15, \bit_depth, \
+        "sub      r12, r0, r1, asr #1", \
+        "cmp      r3, #0"
 
-        cmp      r3, #0
         bne      1f
-        vst1.16  {q10, q11}, [r0], r1
+        vst1.16  {q10, q11}, [r12]
         vst1.16  {q12, q13}, [r0]
         bx       lr
 
         @ At least one no_f bit is set
         @ Which means we need to break this apart in an ugly fashion
 1:
-        lsls     r2, r3, #31            @ b0 -> N, b1 -> C
-        vstrpl   d20, [r0, #0]
-        vstrpl   d21, [r0, #8]
-        vstrcc   d22, [r0, #16]
-        vstrcc   d23, [r0, #24]
-        add      r0, r1
         lsls     r3, #29                @ b2 -> N, b3 -> C
         vstrpl   d24, [r0, #0]
         vstrpl   d25, [r0, #8]
         vstrcc   d26, [r0, #16]
         vstrcc   d27, [r0, #24]
+        lsls     r3, #2                 @ b0 -> N, b1 -> C
+        vstrpl   d20, [r12, #0]
+        vstrpl   d21, [r12, #8]
+        vstrcc   d22, [r12, #16]
+        vstrcc   d23, [r12, #24]
         bx       lr
 .endm
 
@@ -803,105 +820,111 @@ function ff_hevc_rpi_v_loop_filter_uv2_neon_8, export=1
         vld2.16  {d20[3], d22[3]}, [r0], r1
         blo      10f
 
-        sub      lr, r0, r3
         vld2.16  {d17[0], d19[0]}, [r3], r1
         vld2.16  {d21[0], d23[0]}, [r0], r1
 
-        cmp      lr, #4
+        sub      ip, r0, r3
         vld2.16  {d17[1], d19[1]}, [r3], r1
         vld2.16  {d21[1], d23[1]}, [r0], r1
 
+        cmp      ip, #4
         vld2.16  {d17[2], d19[2]}, [r3], r1
         vld2.16  {d21[2], d23[2]}, [r0], r1
 
         vld2.16  {d17[3], d19[3]}, [r3]
         vld2.16  {d21[3], d23[3]}, [r0]
-        it eq
-        ldreq    lr, [sp, #4]
 
-        hevc_loop_filter_uv_body2 d16, d17, d18, d19, d20, d21, d22, d23
-        cmp      lr, #0
-        add      r3, #2
-        neg      r1, r1
+        hevc_loop_filter_uv_body2 d16, d17, d18, d19, d20, d21, d22, d23 \
+        "ldr      lr, [sp, #4]", \
+        "neg      r1, r1",       \
+        "it eq; cmpeq lr, #0",   \
+        "add      r3, #2",       \
+        "add      ip, r3, r1",   \
+        "add      r2, r0, r1",   \
+        "lsl      r1, #1"
+
         bne      1f
 
 @ Much/most of the time r0 == r3 + 4 and no_f == 0
 @ so it is worth having this special case
         vst2.16   {d19[3], d21[3]}, [r3], r1    @ P0b, Q0b
-        vst2.16   {d19[2], d21[2]}, [r3], r1
+        vst2.16   {d19[2], d21[2]}, [ip], r1
         vst2.16   {d19[1], d21[1]}, [r3], r1
-        vst2.16   {d19[0], d21[0]}, [r3], r1
+        vst2.16   {d19[0], d21[0]}, [ip], r1
         vst2.16   {d18[3], d20[3]}, [r3], r1    @ P0a, Q0a
-        vst2.16   {d18[2], d20[2]}, [r3], r1
-        vst2.16   {d18[1], d20[1]}, [r3], r1
-        vst2.16   {d18[0], d20[0]}, [r3]
+        vst2.16   {d18[2], d20[2]}, [ip], r1
+        vst2.16   {d18[1], d20[1]}, [r3]
+        vst2.16   {d18[0], d20[0]}, [ip]
         pop       {pc}
 
 @ Either split or partial
 1:
-        ldr      lr, [sp, #4]
-        @ I have no idea if this is faster than any of the other ways of
-        @ testing these bits but it does free up lr
-        lsl      lr, #28
-        add      r2, r0, r1, lsl #2
-        msr      APSR_nzcvq, lr        @ b0 (P0a) -> V, b1 (Q0a) -> C, b2 (P0b) -> Z, b3 (Q0b) -> N
-        add      lr, r3, r1, lsl #2
-        bmi      1f
+        lsls     lr, #29               @ b3 (Q0b) -> C, b2 (P0b) -> N & b31, b1 (Q0a) -> b30, b0 (P0a) -> b29
+        addcs    r0, r0, r1, lsl #1
+        addcs    r2, r2, r1, lsl #1
+        bcs      1f
         @ Q0b
         vst1.16  {d21[3]}, [r0], r1
-        vst1.16  {d21[2]}, [r0], r1
+        vst1.16  {d21[2]}, [r2], r1
         vst1.16  {d21[1]}, [r0], r1
-        vst1.16  {d21[0]}, [r0]
+        vst1.16  {d21[0]}, [r2], r1
 1:
-        beq      2f
+        addmi    r3, r3, r1, lsl #1
+        addmi    ip, ip, r1, lsl #1
+        bmi      1f
         @ P0b
         vst1.16  {d19[3]}, [r3], r1
-        vst1.16  {d19[2]}, [r3], r1
+        vst1.16  {d19[2]}, [ip], r1
         vst1.16  {d19[1]}, [r3], r1
-        vst1.16  {d19[0]}, [r3]
-
-2:
-        bcs      3f
+        vst1.16  {d19[0]}, [ip], r1
+1:
+        lsls     lr, #2                @ b30 (Q0a) -> C, b29 (P0a) -> N & b31
+        bcs      1f
         @ Q0a
-        vst1.16  {d20[3]}, [r2], r1
+        vst1.16  {d20[3]}, [r0], r1
         vst1.16  {d20[2]}, [r2], r1
-        vst1.16  {d20[1]}, [r2], r1
+        vst1.16  {d20[1]}, [r0]
         vst1.16  {d20[0]}, [r2]
-
-3:
-        it vs
-        popvs    {pc}
-        vst1.16  {d18[3]}, [lr], r1
-        vst1.16  {d18[2]}, [lr], r1
-        vst1.16  {d18[1]}, [lr], r1
-        vst1.16  {d18[0]}, [lr]
+1:
+        it       mi
+        popmi    {pc}
+        @ P0a
+        vst1.16  {d18[3]}, [r3], r1
+        vst1.16  {d18[2]}, [ip], r1
+        vst1.16  {d18[1]}, [r3]
+        vst1.16  {d18[0]}, [ip]
         pop      {pc}
 
 @ Single lump (rather than double)
 10:
-        hevc_loop_filter_uv_body1 d16, d18, d20, d22
-
         @ As we have post inced r0/r3 in the load the easiest thing to do is
         @ to subtract and write forwards, rather than backwards (as above)
-        ldr      lr, [sp, #4]
-        add      r3, #2
-        sub      r0, r0, r1, lsl #2
-        sub      r3, r3, r1, lsl #2
-        lsls     lr, #31               @ b0 (P0a) -> N, b1 (Q0a) -> C
+        @ b0 (P0a) -> N, b1 (Q0a) -> C
+
+        hevc_loop_filter_uv_body1 d16, d18, d20, d22 \
+        "ldr      lr, [sp, #4]",       \
+        "add      r3, #2",             \
+        "sub      r0, r0, r1, lsl #2", \
+        "sub      r3, r3, r1, lsl #2", \
+        "lsls     lr, #31",            \
+        "add      r2, r0, r1",         \
+        "add      ip, r3, r1",         \
+        "lsl      r1, #1"
 
         bcs      3f
+        @ Q0a
         vst1.16  {d20[0]}, [r0], r1
-        vst1.16  {d20[1]}, [r0], r1
-        vst1.16  {d20[2]}, [r0], r1
-        vst1.16  {d20[3]}, [r0]
-
+        vst1.16  {d20[1]}, [r2], r1
+        vst1.16  {d20[2]}, [r0]
+        vst1.16  {d20[3]}, [r2]
 3:
-        it mi
+        it       mi
         popmi    {pc}
+        @ P0a
         vst1.16  {d18[0]}, [r3], r1
-        vst1.16  {d18[1]}, [r3], r1
-        vst1.16  {d18[2]}, [r3], r1
-        vst1.16  {d18[3]}, [r3]
+        vst1.16  {d18[1]}, [ip], r1
+        vst1.16  {d18[2]}, [r3]
+        vst1.16  {d18[3]}, [ip]
         pop      {pc}
 
 endfunc
@@ -928,14 +951,14 @@ endfunc
 .macro m_filter_v_uv2_16 bit_depth
         cmp      r2, #0
         bxeq     lr
-
+        push     {lr}
         vld2.32  {d16[0], d18[0]}, [r3], r1
         vld2.32  {d20[0], d22[0]}, [r0], r1
 
+        cmp      r2, #0x10000
         vld2.32  {d16[1], d18[1]}, [r3], r1
         vld2.32  {d20[1], d22[1]}, [r0], r1
 
-        cmp      r2, #0x10000
         vld2.32  {d17[0], d19[0]}, [r3], r1
         vld2.32  {d21[0], d23[0]}, [r0], r1
 
@@ -946,106 +969,109 @@ endfunc
         vld2.32  {d24[0], d26[0]}, [r3], r1
         vld2.32  {d28[0], d30[0]}, [r0], r1
 
+        sub      ip, r0, r3
         vld2.32  {d24[1], d26[1]}, [r3], r1
         vld2.32  {d28[1], d30[1]}, [r0], r1
-        sub      r12, r0, r3
 
+        cmp      ip, #8
         vld2.32  {d25[0], d27[0]}, [r3], r1
         vld2.32  {d29[0], d31[0]}, [r0], r1
-        cmp      r12, #8
 
         vld2.32  {d25[1], d27[1]}, [r3]
         vld2.32  {d29[1], d31[1]}, [r0]
-        it eq
-        ldreq    r12, [sp, #0]
 
-        hevc_loop_filter_uv_body2_16  q8, q12, q9, q13, q10, q14, q11, q15, \bit_depth
-        cmp      r12, #0
-        add      r3, #4
-        neg      r1, r1
+        hevc_loop_filter_uv_body2_16  q8, q12, q9, q13, q10, q14, q11, q15, \bit_depth, \
+        "ldr      lr, [sp, #4]", \
+        "neg      r1, r1",       \
+        "it eq; cmpeq lr, #0",   \
+        "add      r3, #4",       \
+        "add      ip, r3, r1",   \
+        "add      r2, r0, r1",   \
+        "lsl      r1, #1"
+
         bne      1f
 
-@ Much/most of the time r0 == r3 + 4 and no_f == 0
+@ Much/most of the time r0 == r3 + 8 and no_f == 0
 @ so it is worth having this special case
-        vst2.32  {d27[1], d29[1]}, [r3], r1
-        vst2.32  {d27[0], d29[0]}, [r3], r1
-        vst2.32  {d26[1], d28[1]}, [r3], r1
-        vst2.32  {d26[0], d28[0]}, [r3], r1
-        vst2.32  {d19[1], d21[1]}, [r3], r1
-        vst2.32  {d19[0], d21[0]}, [r3], r1
-        vst2.32  {d18[1], d20[1]}, [r3], r1
-        vst2.32  {d18[0], d20[0]}, [r3]
-        bx       lr
+        vst2.32   {d27[1], d29[1]}, [r3], r1    @ P0b, Q0b
+        vst2.32   {d27[0], d29[0]}, [ip], r1
+        vst2.32   {d26[1], d28[1]}, [r3], r1
+        vst2.32   {d26[0], d28[0]}, [ip], r1
+        vst2.32   {d19[1], d21[1]}, [r3], r1    @ P0a, Q0a
+        vst2.32   {d19[0], d21[0]}, [ip], r1
+        vst2.32   {d18[1], d20[1]}, [r3]
+        vst2.32   {d18[0], d20[0]}, [ip]
+        pop       {pc}
 
 @ Either split or partial
 1:
-        ldr      r12, [sp, #0]
-        lsls     r12, #29               @ b2 (P0b) -> N, b3 (Q0b) -> C
+        lsls     lr, #29               @ b3 (Q0b) -> C, b2 (P0b) -> N & b31, b1 (Q0a) -> b30, b0 (P0a) -> b29
+        addcs    r0, r0, r1, lsl #1
+        addcs    r2, r2, r1, lsl #1
         bcs      1f
         @ Q0b
-        mov      r2, r0
-        vst1.32  {d29[1]}, [r2], r1
+        vst1.32  {d29[1]}, [r0], r1
         vst1.32  {d29[0]}, [r2], r1
-        vst1.32  {d28[1]}, [r2], r1
-        vst1.32  {d28[0]}, [r2]
+        vst1.32  {d28[1]}, [r0], r1
+        vst1.32  {d28[0]}, [r2], r1
 1:
-        bmi      2f
+        addmi    r3, r3, r1, lsl #1
+        addmi    ip, ip, r1, lsl #1
+        bmi      1f
         @ P0b
-        mov      r2, r3
-        vst1.32  {d27[1]}, [r2], r1
-        vst1.32  {d27[0]}, [r2], r1
-        vst1.32  {d26[1]}, [r2], r1
-        vst1.32  {d26[0]}, [r2]
-
-2:
-        lsls     r12, #2                @ b0 (P0a) -> N, b1 (Q0a) -> C
-        bcs      3f
+        vst1.32  {d27[1]}, [r3], r1
+        vst1.32  {d27[0]}, [ip], r1
+        vst1.32  {d26[1]}, [r3], r1
+        vst1.32  {d26[0]}, [ip], r1
+1:
+        lsls     lr, #2                @ b30 (Q0a) -> C, b29 (P0a) -> N & b31
+        bcs      1f
         @ Q0a
-        add      r0, r0, r1, lsl #2
         vst1.32  {d21[1]}, [r0], r1
-        vst1.32  {d21[0]}, [r0], r1
-        vst1.32  {d20[1]}, [r0], r1
-        vst1.32  {d20[0]}, [r0]
-
-3:
-        it mi
-        bxmi     lr
+        vst1.32  {d21[0]}, [r2], r1
+        vst1.32  {d20[1]}, [r0]
+        vst1.32  {d20[0]}, [r2]
+1:
+        it       mi
+        popmi    {pc}
         @ P0a
-        add      r3, r3, r1, lsl #2
         vst1.32  {d19[1]}, [r3], r1
-        vst1.32  {d19[0]}, [r3], r1
-        vst1.32  {d18[1]}, [r3], r1
-        vst1.32  {d18[0]}, [r3]
-        bx       lr
+        vst1.32  {d19[0]}, [ip], r1
+        vst1.32  {d18[1]}, [r3]
+        vst1.32  {d18[0]}, [ip]
+        pop      {pc}
 
-
+@ Single lump (rather than double)
 10:
-        hevc_loop_filter_uv_body1_16  q8, q9, q10, q11, \bit_depth
-
         @ As we have post inced r0/r3 in the load the easiest thing to do is
         @ to subtract and write forwards, rather than backwards (as above)
-        ldr      r12, [sp, #0]
-        add      r3, #4
-        sub      r0, r0, r1, lsl #2
-        sub      r3, r3, r1, lsl #2
-        lsls     r12, #31               @ b0 (P0a) -> N, b1 (Q0a) -> C
+        @ b0 (P0a) -> N, b1 (Q0a) -> C
+
+        hevc_loop_filter_uv_body1_16  q8, q9, q10, q11, \bit_depth, \
+        "ldr      lr, [sp, #4]",       \
+        "add      r3, #4",             \
+        "sub      r0, r0, r1, lsl #2", \
+        "sub      r3, r3, r1, lsl #2", \
+        "lsls     lr, #31",            \
+        "add      r2, r0, r1",         \
+        "add      ip, r3, r1",         \
+        "lsl      r1, #1"
 
         bcs      3f
         @ Q0a
         vst1.32  {d20[0]}, [r0], r1
-        vst1.32  {d20[1]}, [r0], r1
-        vst1.32  {d21[0]}, [r0], r1
-        vst1.32  {d21[1]}, [r0]
-
+        vst1.32  {d20[1]}, [r2], r1
+        vst1.32  {d21[0]}, [r0]
+        vst1.32  {d21[1]}, [r2]
 3:
-        it mi
-        bxmi     lr
+        it       mi
+        popmi    {pc}
         @ P0a
         vst1.32  {d18[0]}, [r3], r1
-        vst1.32  {d18[1]}, [r3], r1
-        vst1.32  {d19[0]}, [r3], r1
-        vst1.32  {d19[1]}, [r3]
-        bx       lr
+        vst1.32  {d18[1]}, [ip], r1
+        vst1.32  {d19[0]}, [r3]
+        vst1.32  {d19[1]}, [ip]
+        pop      {pc}
 .endm
 
 
