@@ -1075,6 +1075,325 @@ endfunc
 .endm
 
 
+#if 1 // NEON version
+
+
+/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_inc, int out_inc,
+ *                                            const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
+ *                                            const MvField *curr, const MvField *neigh, uint8_t *bs)
+ */
+function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
+        mov         ip, sp
+        push        {a2,v1-v8,lr}
+        ldm         ip, {v1-v7}
+        cmp         a1, #2
+        bls         2f
+        vpush       {d8-d13}
+        sub         a3, a3, #10
+        vmov.u16    d12, #1
+        vmov.u16    d13, #2
+        vmov.u16    d27, #4
+1:
+        vmov.u8     q12, #0
+
+        vld2.32     {d0[0], d2[0]}, [v5]!
+        vld2.32     {d4[0], d6[0]}, [v6]!
+        ldrb        a2, [v5], #1
+        ldrb        ip, [v6], #1
+        ldrb        v8, [v5], #1
+        ldrb        lr, [v6], #1
+        add         a2, v1, a2, lsl #2
+        vld1.8      {d24[0]}, [v5], a3
+        add         ip, v3, ip, lsl #2
+        vld1.8      {d25[0]}, [v6], a3
+        add         v8, v2, v8, lsl #2
+        vld1.32     {d16[0]}, [a2]
+        add         lr, v4, lr, lsl #2
+        vld1.32     {d20[0]}, [ip]
+        vld1.32     {d18[0]}, [v8]
+        vld1.32     {d22[0]}, [lr]
+
+        vld2.32     {d0[1], d2[1]}, [v5]!
+        vld2.32     {d4[1], d6[1]}, [v6]!
+        ldrb        a2, [v5], #1
+        ldrb        ip, [v6], #1
+        ldrb        v8, [v5], #1
+        ldrb        lr, [v6], #1
+        add         a2, v1, a2, lsl #2
+        vld1.8      {d24[2]}, [v5], a3
+        add         ip, v3, ip, lsl #2
+        vld1.8      {d25[2]}, [v6], a3
+        add         v8, v2, v8, lsl #2
+        vld1.32     {d16[1]}, [a2]
+        add         lr, v4, lr, lsl #2
+        vld1.32     {d20[1]}, [ip]
+        vld1.32     {d18[1]}, [v8]
+        vld1.32     {d22[1]}, [lr]
+
+        vld2.32     {d1[0], d3[0]}, [v5]!
+        vld2.32     {d5[0], d7[0]}, [v6]!
+        ldrb        a2, [v5], #1
+        ldrb        ip, [v6], #1
+        ldrb        lr, [v6], #1
+        ldrb        v8, [v5], #1
+        add         a2, v1, a2, lsl #2
+        vld1.8      {d24[4]}, [v5], a3
+        add         ip, v3, ip, lsl #2
+        vld1.8      {d25[4]}, [v6], a3
+        add         v8, v2, v8, lsl #2
+        vld1.32     {d17[0]}, [a2]
+        add         lr, v4, lr, lsl #2
+        vld1.32     {d21[0]}, [ip]
+        vld1.32     {d19[0]}, [v8]
+        vld1.32     {d23[0]}, [lr]
+
+        vld2.32     {d1[1], d3[1]}, [v5]!
+        vld2.32     {d5[1], d7[1]}, [v6]!
+        ldrb        a2, [v5], #1
+        ldrb        ip, [v6], #1
+        ldrb        v8, [v5], #1
+        ldrb        lr, [v6], #1
+        add         a2, v1, a2, lsl #2
+        vld1.8      {d24[6]}, [v5], a3
+        add         ip, v3, ip, lsl #2
+        vld1.8      {d25[6]}, [v6], a3
+        add         v8, v2, v8, lsl #2
+        vld1.32     {d17[1]}, [a2]
+        add         lr, v4, lr, lsl #2
+        vld1.32     {d21[1]}, [ip]
+        vld1.32     {d19[1]}, [v8]
+        vld1.32     {d23[1]}, [lr]
+
+        @ So now we have:
+        @ q0.32[i]  = curr[i].mv[0]
+        @ q1.32[i]  = curr[i].mv[1]
+        @ q2.32[i]  = neigh[i].mv[0]
+        @ q3.32[i]  = neigh[i].mv[1]
+        @ q8.32[i]  = curr_rpl0[curr[i].ref_idx[0]]
+        @ q9.32[i]  = curr_rpl1[curr[i].ref_idx[1]]
+        @ q10.32[i] = neigh_rpl0[neigh[i].ref_idx[0]]
+        @ q11.32[i] = neigh_rpl1[neigh[i].ref_idx[1]]
+        @ d24.16[i] = curr[i].pred_flag
+        @ d25.16[i] = neigh[i].pred_flag
+
+        vtst.16     d28, d24, d12
+        vtst.16     d29, d24, d13
+        vadd.i16    d8, d24, d12
+        vadd.i16    d9, d25, d12
+        vtst.16     d30, d25, d12
+        vtst.16     d31, d25, d13
+        veor        d26, d8, d9
+        ldr         lr, [sp, 6*8]
+        vmovl.s16   q4, d28
+        vmovl.s16   q5, d29
+        vmovl.s16   q14, d30
+        vmovl.s16   q15, d31
+        vbif        q0, q1, q4
+        vbif        q2, q3, q14
+        vbif        q1, q0, q5
+        vbif        q3, q2, q15
+        vabd.s16    q12, q0, q2
+        vabd.s16    q2, q1
+        vabd.s16    q0, q3
+        vabd.s16    q1, q3
+        vbif        q8, q9, q4
+        vbif        q10, q11, q14
+        vbif        q9, q8, q5
+        vbif        q11, q10, q15
+        vclt.u16    d6, d24, d27
+        vclt.u16    d8, d2, d27
+        vclt.u16    d7, d25, d27
+        vclt.u16    d9, d3, d27
+        vclt.u16    d2, d0, d27
+        vclt.u16    d0, d4, d27
+        vclt.u16    d3, d1, d27
+        vclt.u16    d1, d5, d27
+        vceq.i32    q12, q10, q8
+        vceq.i32    q10, q9
+        vceq.i32    q8, q11
+        vceq.i32    q9, q11
+        vshrn.i32   d6, q3, #8
+        vshrn.i32   d7, q4, #8
+        vshrn.i32   d8, q1, #8
+        vshrn.i32   d9, q0, #8
+        vmovn.i32   d4, q12
+        vmovn.i32   d2, q10
+        vmovn.i32   d3, q8
+        vmovn.i32   d5, q9
+        @ and together d4, d5, d6, rev(d6), d7, rev(d7)
+        vand        q2, q3
+        vrev16.8    q3, q3
+        vand        q2, q3
+        @ and together d2, d3, d8, rev(d8), d9, rev(d9)
+        vand        q1, q4
+        vrev16.8    q4, q4
+        vand        q1, q4
+        vand        d4, d5
+        vand        d2, d3
+        vbic        d0, d12, d4
+        vshr.u16    d26, #2
+        vbic        d0, d2
+        vorr        d0, d26
+        bls         4f
+        teq         lr, #1
+        bne         4f
+        vmovn.i16   d0,q0
+        subs        a1, #4
+        vst1.32     {d0[0]}, [sl]!
+        bhi         1b
+
+        vpop        {d8-d13}
+        pop         {a2,v1-v8,pc}
+
+        @ Write out the results, general case
+4:      cmp         a1, #2
+        beq         7f
+        blo         9f
+
+        mov         a2, lr
+5:      vst1.8      {d0[0]}, [v7], a4
+        subs        a2, a2, #1
+        bne         5b
+
+        mov         a2, lr
+6:      vst1.8      {d0[2]}, [v7], a4
+        subs        a2, a2, #1
+        bne         6b
+
+7:      mov         a2, lr
+8:      vst1.8      {d0[4]}, [v7], a4
+        subs        a2, a2, #1
+        bne         8b
+
+9:      mov         a2, lr
+10:     vst1.8      {d0[6]}, [v7], a4
+        subs        a2, a2, #1
+        bne         10b
+
+        @ See if there are another 4 PUs to process
+        subs        a1, a1, #4
+        bhi         1b
+
+        vpop        {d8-d13}
+        pop         {a2,v1-v8,pc}
+
+
+2:
+        sub         a3, a3, #10
+        vmov.u8     d16, #0
+        vmov.u16    d17, #1
+        vmov.u16    d18, #2
+        vmov.u16    d19, #4
+        blo         3f
+        vld2.32     {d0[0], d1[0]}, [v5]!
+        vld2.32     {d2[0], d3[0]}, [v6]!
+        ldrb        a2, [v5], #1
+        ldrb        ip, [v6], #1
+        ldrb        lr, [v6], #1
+        ldrb        v8, [v5], #1
+        add         a2, v1, a2, lsl #2
+        vld1.8      {d16[0]}, [v5], a3
+        add         ip, v3, ip, lsl #2
+        vld1.8      {d16[4]}, [v6], a3
+        add         v8, v2, v8, lsl #2
+        vld1.32     {d4[0]}, [a2]
+        add         lr, v4, lr, lsl #2
+        vld1.32     {d5[0]}, [ip]
+        vld1.32     {d6[0]}, [v8]
+        vld1.32     {d7[0]}, [lr]
+
+3:
+        vld2.32     {d0[1], d1[1]}, [v5]!
+        vld2.32     {d2[1], d3[1]}, [v6]!
+        ldrb        a2, [v5], #1
+        ldrb        ip, [v6], #1
+        ldrb        v8, [v5], #1
+        ldrb        lr, [v6], #1
+        add         a2, v1, a2, lsl #2
+        vld1.8      {d16[2]}, [v5], a3
+        add         ip, v3, ip, lsl #2
+        vld1.8      {d16[6]}, [v6], a3
+        add         v8, v2, v8, lsl #2
+        vld1.32     {d4[1]}, [a2]
+        add         lr, v4, lr, lsl #2
+        vld1.32     {d5[1]}, [ip]
+        vld1.32     {d6[1]}, [v8]
+        vld1.32     {d7[1]}, [lr]
+
+        @ So now we have:
+        @ d0.32[i]  = curr[i].mv[0]
+        @ d1.32[i]  = curr[i].mv[1]
+        @ d2.32[i]  = neigh[i].mv[0]
+        @ d3.32[i]  = neigh[i].mv[1]
+        @ d4.32[i] = curr_rpl0[curr[i].ref_idx[0]]
+        @ d5.32[i] = neigh_rpl0[neigh[i].ref_idx[0]]
+        @ d6.32[i] = curr_rpl1[curr[i].ref_idx[1]]
+        @ d7.32[i] = neigh_rpl1[neigh[i].ref_idx[1]]
+        @ d16.16[i] = curr[i].pred_flag
+        @ d16.16[2+i] = neigh[i].pred_flag
+
+        vtst.16     d20, d16, d17
+        vtst.16     d22, d16, d18
+        vadd.i16    d30, d16, d17
+        vswp        d2, d3
+        ldr         lr, [sp]
+        vmovl.s16   q10, d20
+        vmovl.s16   q11, d22
+        vbif        d0, d1, d20
+        vbif        d4, d6, d20
+        vbif        d3, d2, d21
+        vbif        d5, d7, d21
+        vbif        d1, d0, d22
+        vbif        d6, d4, d22
+        vbif        d2, d3, d23
+        vbif        d7, d5, d23
+        vshr.u16    d30, #2
+        vabd.s16    d24, d0, d3
+        vabd.s16    d25, d1, d2
+        vabd.s16    q0, q0, q1
+        vceq.i32    d2, d4, d5
+        vceq.i32    d20, d5, d6
+        vceq.i32    d21, d4, d7
+        vceq.i32    d3, d6, d7
+        vclt.u16    d6, d24, d19
+        vclt.u16    d7, d25, d19
+        vclt.u16    d22, d1, d19
+        vclt.u16    d23, d0, d19
+        vshrn.i32   d6, q3, #8
+        vmovn.i32   d2, q1
+        vshrn.i32   d7, q11, #8
+        vmovn.i32   d3, q10
+        vand        q0, q3, q1
+        vrev16.8    q3, q3
+        vand        q0, q3
+        vsra.u64    d30, #32
+        vshr.u64    q1, q0, #32
+        vand        q0, q1
+        vbic        d0, d17, d0
+        vand        d30, d30, d17
+        vbic        d0, d1
+        vorr        d0, d30
+
+        @ Write out the results
+4:      cmp         a1, #2
+        blo         9f
+
+        mov         a2, lr
+8:      vst1.8      {d0[0]}, [v7], a4
+        subs        a2, a2, #1
+        bne         8b
+
+9:      mov         a2, lr
+10:     vst1.8      {d0[2]}, [v7], a4
+        subs        a2, a2, #1
+        bne         10b
+
+        pop         {a2,v1-v8,pc}
+endfunc
+
+
+
+#else // non-NEON version
 
 
 /* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_inc, int out_inc,
@@ -1200,6 +1519,10 @@ T       addhs       v7, v7, a4
 90:     mov         a3, #1
         b           11b
 endfunc
+
+
+#endif
+
 
 @ =============================================================================
 @
