@@ -1077,9 +1077,9 @@ endfunc
 
 
 
-/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_i
- *                                            int *curr_rpl0, int *curr_
- *                                            MvField *curr, MvField *ne
+/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_inc, int out_inc,
+ *                                            const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
+ *                                            const MvField *curr, const MvField *neigh, uint8_t *bs)
  */
 function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         add         ip, sp, #4*4
