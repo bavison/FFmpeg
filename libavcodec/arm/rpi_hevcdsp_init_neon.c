@@ -229,9 +229,9 @@ void ff_hevc_rpi_sao_band_64_neon_10(uint8_t *_dst, uint8_t *_src, ptrdiff_t str
                                 int16_t *sao_offset_val, int sao_left_class, int width, int height);
 
 
-void ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_inc, int out_inc,
+void ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, const MvField *curr, const MvField *neigh,
                                                 const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
-                                                const MvField *curr, const MvField *neigh, uint8_t *bs);
+                                                int in_inc, uint8_t *bs);
 
 
 static void ff_hevc_rpi_sao_edge_48_neon_8(uint8_t *_dst, uint8_t *_src, ptrdiff_t stride_dst, int16_t *_sao_offset_val, int eo, int width, int height)

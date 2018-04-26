@@ -123,9 +123,9 @@ DECLARE_ALIGNED(16, const int8_t, ff_hevc_rpi_qpel_filters[3][16]) = {
 #include "rpi_hevcdsp_template.c"
 #undef BIT_DEPTH
 
-static void hevc_deblocking_boundary_strengths(int pus, int dup, int in_inc, int out_inc,
+static void hevc_deblocking_boundary_strengths(int pus, int dup, const MvField *curr, const MvField *neigh,
                                                const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
-                                               const MvField *curr, const MvField *neigh, uint8_t *bs)
+                                               int in_inc, uint8_t *bs)
 {
     for (; pus > 0; pus--) {
         int strength, out;
@@ -230,10 +230,7 @@ static void hevc_deblocking_boundary_strengths(int pus, int dup, int in_inc, int
         neigh += in_inc / sizeof (MvField);
 
         for (out = dup; out > 0; out--)
-        {
-            *bs = strength;
-            bs += out_inc;
-        }
+            *bs++ = strength;
     }
 }
 

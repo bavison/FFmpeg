@@ -166,9 +166,9 @@ typedef struct HEVCDSPContext {
                                  uint8_t * src_l,
                                  unsigned int no_f);
 
-    void (*hevc_deblocking_boundary_strengths)(int pus, int dup, int in_inc, int out_inc,
+    void (*hevc_deblocking_boundary_strengths)(int pus, int dup, const MvField *curr, const MvField *neigh,
                                                const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
-                                               const MvField *curr, const MvField *neigh, uint8_t *bs);
+                                               int in_inc, uint8_t *bs);
 } HEVCDSPContext;
 
 void ff_hevc_rpi_dsp_init(HEVCDSPContext *hpc, int bit_depth);

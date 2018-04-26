@@ -1078,34 +1078,34 @@ endfunc
 #if 1 // NEON version
 
 
-/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_inc, int out_inc,
+/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, const MvField *curr, const MvField *neigh,
  *                                            const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
- *                                            const MvField *curr, const MvField *neigh, uint8_t *bs)
+ *                                            int in_inc, uint8_t *bs)
  */
 function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         mov         ip, sp
         push        {a2,v1-v8,lr}
-        ldm         ip, {v1-v7}
+        ldm         ip, {v1-v6}
         cmp         a1, #2
         bls         2f
         vpush       {d8-d13}
-        sub         a3, a3, #10
+        sub         v5, v5, #10
         vmov.u16    d12, #1
         vmov.u16    d13, #2
         vmov.u16    d27, #4
 1:
         vmov.u8     q12, #0
 
-        vld2.32     {d0[0], d2[0]}, [v5]!
-        vld2.32     {d4[0], d6[0]}, [v6]!
-        ldrb        a2, [v5], #1
-        ldrb        ip, [v6], #1
-        ldrb        v8, [v5], #1
-        ldrb        lr, [v6], #1
+        vld2.32     {d0[0], d2[0]}, [a3]!
+        vld2.32     {d4[0], d6[0]}, [a4]!
+        ldrb        a2, [a3], #1
+        ldrb        ip, [a4], #1
+        ldrb        v8, [a3], #1
+        ldrb        lr, [a4], #1
         add         a2, v1, a2, lsl #2
-        vld1.8      {d24[0]}, [v5], a3
+        vld1.8      {d24[0]}, [a3], v5
         add         ip, v3, ip, lsl #2
-        vld1.8      {d25[0]}, [v6], a3
+        vld1.8      {d25[0]}, [a4], v5
         add         v8, v2, v8, lsl #2
         vld1.32     {d16[0]}, [a2]
         add         lr, v4, lr, lsl #2
@@ -1113,16 +1113,16 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         vld1.32     {d18[0]}, [v8]
         vld1.32     {d22[0]}, [lr]
 
-        vld2.32     {d0[1], d2[1]}, [v5]!
-        vld2.32     {d4[1], d6[1]}, [v6]!
-        ldrb        a2, [v5], #1
-        ldrb        ip, [v6], #1
-        ldrb        v8, [v5], #1
-        ldrb        lr, [v6], #1
+        vld2.32     {d0[1], d2[1]}, [a3]!
+        vld2.32     {d4[1], d6[1]}, [a4]!
+        ldrb        a2, [a3], #1
+        ldrb        ip, [a4], #1
+        ldrb        v8, [a3], #1
+        ldrb        lr, [a4], #1
         add         a2, v1, a2, lsl #2
-        vld1.8      {d24[2]}, [v5], a3
+        vld1.8      {d24[2]}, [a3], v5
         add         ip, v3, ip, lsl #2
-        vld1.8      {d25[2]}, [v6], a3
+        vld1.8      {d25[2]}, [a4], v5
         add         v8, v2, v8, lsl #2
         vld1.32     {d16[1]}, [a2]
         add         lr, v4, lr, lsl #2
@@ -1130,16 +1130,16 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         vld1.32     {d18[1]}, [v8]
         vld1.32     {d22[1]}, [lr]
 
-        vld2.32     {d1[0], d3[0]}, [v5]!
-        vld2.32     {d5[0], d7[0]}, [v6]!
-        ldrb        a2, [v5], #1
-        ldrb        ip, [v6], #1
-        ldrb        lr, [v6], #1
-        ldrb        v8, [v5], #1
+        vld2.32     {d1[0], d3[0]}, [a3]!
+        vld2.32     {d5[0], d7[0]}, [a4]!
+        ldrb        a2, [a3], #1
+        ldrb        ip, [a4], #1
+        ldrb        lr, [a4], #1
+        ldrb        v8, [a3], #1
         add         a2, v1, a2, lsl #2
-        vld1.8      {d24[4]}, [v5], a3
+        vld1.8      {d24[4]}, [a3], v5
         add         ip, v3, ip, lsl #2
-        vld1.8      {d25[4]}, [v6], a3
+        vld1.8      {d25[4]}, [a4], v5
         add         v8, v2, v8, lsl #2
         vld1.32     {d17[0]}, [a2]
         add         lr, v4, lr, lsl #2
@@ -1147,16 +1147,16 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         vld1.32     {d19[0]}, [v8]
         vld1.32     {d23[0]}, [lr]
 
-        vld2.32     {d1[1], d3[1]}, [v5]!
-        vld2.32     {d5[1], d7[1]}, [v6]!
-        ldrb        a2, [v5], #1
-        ldrb        ip, [v6], #1
-        ldrb        v8, [v5], #1
-        ldrb        lr, [v6], #1
+        vld2.32     {d1[1], d3[1]}, [a3]!
+        vld2.32     {d5[1], d7[1]}, [a4]!
+        ldrb        a2, [a3], #1
+        ldrb        ip, [a4], #1
+        ldrb        v8, [a3], #1
+        ldrb        lr, [a4], #1
         add         a2, v1, a2, lsl #2
-        vld1.8      {d24[6]}, [v5], a3
+        vld1.8      {d24[6]}, [a3], v5
         add         ip, v3, ip, lsl #2
-        vld1.8      {d25[6]}, [v6], a3
+        vld1.8      {d25[6]}, [a4], v5
         add         v8, v2, v8, lsl #2
         vld1.32     {d17[1]}, [a2]
         add         lr, v4, lr, lsl #2
@@ -1239,7 +1239,7 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         bne         4f
         vmovn.i16   d0,q0
         subs        a1, #4
-        vst1.32     {d0[0]}, [sl]!
+        vst1.32     {d0[0]}, [v6]!
         bhi         1b
 
         vpop        {d8-d13}
@@ -1251,22 +1251,22 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         blo         9f
 
         mov         a2, lr
-5:      vst1.8      {d0[0]}, [v7], a4
+5:      vst1.8      {d0[0]}, [v6]!
         subs        a2, a2, #1
         bne         5b
 
         mov         a2, lr
-6:      vst1.8      {d0[2]}, [v7], a4
+6:      vst1.8      {d0[2]}, [v6]!
         subs        a2, a2, #1
         bne         6b
 
 7:      mov         a2, lr
-8:      vst1.8      {d0[4]}, [v7], a4
+8:      vst1.8      {d0[4]}, [v6]!
         subs        a2, a2, #1
         bne         8b
 
 9:      mov         a2, lr
-10:     vst1.8      {d0[6]}, [v7], a4
+10:     vst1.8      {d0[6]}, [v6]!
         subs        a2, a2, #1
         bne         10b
 
@@ -1279,22 +1279,22 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
 
 
 2:
-        sub         a3, a3, #10
+        sub         v5, v5, #10
         vmov.u8     d16, #0
         vmov.u16    d17, #1
         vmov.u16    d18, #2
         vmov.u16    d19, #4
         blo         3f
-        vld2.32     {d0[0], d1[0]}, [v5]!
-        vld2.32     {d2[0], d3[0]}, [v6]!
-        ldrb        a2, [v5], #1
-        ldrb        ip, [v6], #1
-        ldrb        lr, [v6], #1
-        ldrb        v8, [v5], #1
+        vld2.32     {d0[0], d1[0]}, [a3]!
+        vld2.32     {d2[0], d3[0]}, [a4]!
+        ldrb        a2, [a3], #1
+        ldrb        ip, [a4], #1
+        ldrb        lr, [a4], #1
+        ldrb        v8, [a3], #1
         add         a2, v1, a2, lsl #2
-        vld1.8      {d16[0]}, [v5], a3
+        vld1.8      {d16[0]}, [a3], v5
         add         ip, v3, ip, lsl #2
-        vld1.8      {d16[4]}, [v6], a3
+        vld1.8      {d16[4]}, [a4], v5
         add         v8, v2, v8, lsl #2
         vld1.32     {d4[0]}, [a2]
         add         lr, v4, lr, lsl #2
@@ -1303,16 +1303,16 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         vld1.32     {d7[0]}, [lr]
 
 3:
-        vld2.32     {d0[1], d1[1]}, [v5]!
-        vld2.32     {d2[1], d3[1]}, [v6]!
-        ldrb        a2, [v5], #1
-        ldrb        ip, [v6], #1
-        ldrb        v8, [v5], #1
-        ldrb        lr, [v6], #1
+        vld2.32     {d0[1], d1[1]}, [a3]!
+        vld2.32     {d2[1], d3[1]}, [a4]!
+        ldrb        a2, [a3], #1
+        ldrb        ip, [a4], #1
+        ldrb        v8, [a3], #1
+        ldrb        lr, [a4], #1
         add         a2, v1, a2, lsl #2
-        vld1.8      {d16[2]}, [v5], a3
+        vld1.8      {d16[2]}, [a3], v5
         add         ip, v3, ip, lsl #2
-        vld1.8      {d16[6]}, [v6], a3
+        vld1.8      {d16[6]}, [a4], v5
         add         v8, v2, v8, lsl #2
         vld1.32     {d4[1]}, [a2]
         add         lr, v4, lr, lsl #2
@@ -1379,12 +1379,12 @@ function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         blo         9f
 
         mov         a2, lr
-8:      vst1.8      {d0[0]}, [v7], a4
+8:      vst1.8      {d0[0]}, [v6]!
         subs        a2, a2, #1
         bne         8b
 
 9:      mov         a2, lr
-10:     vst1.8      {d0[2]}, [v7], a4
+10:     vst1.8      {d0[2]}, [v6]!
         subs        a2, a2, #1
         bne         10b
 
@@ -1396,64 +1396,62 @@ endfunc
 #else // non-NEON version
 
 
-/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, int in_inc, int out_inc,
+/* ff_hevc_rpi_deblocking_boundary_strengths_neon(int pus, int dup, const MvField *curr, const MvField *neigh,
  *                                            const int *curr_rpl0, const int *curr_rpl1, const int *neigh_rpl0, const int *neigh_rpl1,
- *                                            const MvField *curr, const MvField *neigh, uint8_t *bs)
+ *                                            int in_inc, uint8_t *bs)
  */
 function ff_hevc_rpi_deblocking_boundary_strengths_neon, export=1
         add         ip, sp, #4*4
         push        {a2-a4,v1-v8,lr}
-        ldmia       ip, {v5-v7}
+        ldr         v7, [ip, #4]
 1:      ldmdb       ip, {v1-v4}
-        ldrsb       a3, [v5, #8]    @ curr->ref_idx
-        ldrsb       v8, [v5, #9]
-        ldrsb       ip, [v6, #8]    @ neigh->ref_idx
-        ldrsb       lr, [v6, #9]
-        ldr         v1, [v1, a3, lsl #2]
-        ldrb        a3, [v5, #10]   @ curr->pred_flag
+        ldrsb       v5, [a3, #8]    @ curr->ref_idx
+        ldrsb       v8, [a3, #9]
+        ldrsb       ip, [a4, #8]    @ neigh->ref_idx
+        ldrsb       lr, [a4, #9]
+        ldr         v1, [v1, v5, lsl #2]
+        ldrb        v5, [a3, #10]   @ curr->pred_flag
         ldr         v2, [v2, v8, lsl #2]
-        ldrb        v8, [v6, #10]   @ neigh->pred_flag
+        ldrb        v8, [a4, #10]   @ neigh->pred_flag
         ldr         v3, [v3, ip, lsl #2]
         ldr         v4, [v4, lr, lsl #2]
-        teq         a3, #3
+        teq         v5, #3
         beq         20f
         teq         v8, #3
         beq         90f
 
-        tst         a3, #1
+        tst         v5, #1
         itee        ne
-        ldrne       a3, [v5, #0]    @ curr->mv[0]
-        ldreq       a3, [v5, #4]    @ curr->mv[1]
+        ldrne       v5, [a3, #0]    @ curr->mv[0]
+        ldreq       v5, [a3, #4]    @ curr->mv[1]
         moveq       v1, v2
         tst         v8, #1
         itee        ne
-        ldrne       v8, [v6, #0]    @ neigh->mv[0]
-        ldreq       v8, [v6, #4]    @ neigh->mv[1]
+        ldrne       v8, [a4, #0]    @ neigh->mv[0]
+        ldreq       v8, [a4, #4]    @ neigh->mv[1]
         moveq       v3, v4
         teq         v1, v3
         bne         10f
         ldr         lr, =0xFFFCFFFC
-        ssub16      ip, v8, a3
-        ssub16      a3, a3, v8
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      ip, v8, v5
+        ssub16      v5, v5, v8
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         @ drop through
 10:     it          ne
-        movne       a3, #1
+        movne       v5, #1
 11:     subs        a2, a2, #1
 12:
-A       strbhs      a3, [v7], a4
-T       itt         hs
-T       strbhs      a3, [v7]
-T       addhs       v7, v7, a4
+        strbhs      v5, [v7], #1
         subs        a2, a2, #1
         bhs         12b
 
-        ldm         sp, {a2, a3}
+        ldr         a2, [sp]
         add         ip, sp, #16*4
+        ldr         v5, [sp, #16*4]
         subs        a1, a1, #1
-        add         v5, v5, a3
-        add         v6, v6, a3
+        add         a3, a3, v5
+        add         a4, a4, v5
         bhi         1b
         pop         {a2-a4,v1-v8,pc}
 
@@ -1467,43 +1465,43 @@ T       addhs       v7, v7, a4
         teq         v1, v2
         bne         30f
 
-        ldrd        v1, v2, [v5]    @ curr->mv
-        ldrd        v3, v4, [v6]    @ neigh->mv
+        ldrd        v1, v2, [a3]    @ curr->mv
+        ldrd        v3, v4, [a4]    @ neigh->mv
         ldr         lr, =0xFFFCFFFC
         ssub16      ip, v3, v1
-        ssub16      a3, v1, v3
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      v5, v1, v3
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         bne         25f
         ssub16      ip, v4, v2
-        ssub16      a3, v2, v4
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      v5, v2, v4
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         beq         11b
         @ drop through
 25:     ssub16      ip, v4, v1
-        ssub16      a3, v1, v4
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      v5, v1, v4
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         bne         10b
         ssub16      ip, v3, v2
-        ssub16      a3, v2, v3
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      v5, v2, v3
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         b           10b
 
-30:     ldrd        v1, v2, [v5]    @ curr->mv
-        ldrd        v3, v4, [v6]    @ neigh->mv
+30:     ldrd        v1, v2, [a3]    @ curr->mv
+        ldrd        v3, v4, [a4]    @ neigh->mv
         ldr         lr, =0xFFFCFFFC
         ssub16      ip, v3, v1
-        ssub16      a3, v1, v3
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      v5, v1, v3
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         bne         10b
         ssub16      ip, v4, v2
-        ssub16      a3, v2, v4
-        sel         a3, a3, ip
-        ands        a3, a3, lr
+        ssub16      v5, v2, v4
+        sel         v5, v5, ip
+        ands        v5, v5, lr
         b           10b
 
 40:     teq         v1, v4
@@ -1511,12 +1509,12 @@ T       addhs       v7, v7, a4
         teqeq       v2, v3
         bne         10b
 
-        ldrd        v1, v2, [v5]    @ curr->mv
-        ldrd        v3, v4, [v6]    @ neigh->mv
+        ldrd        v1, v2, [a3]    @ curr->mv
+        ldrd        v3, v4, [a4]    @ neigh->mv
         ldr         lr, =0xFFFCFFFC
         b           25b
 
-90:     mov         a3, #1
+90:     mov         v5, #1
         b           11b
 endfunc
 

@@ -954,9 +954,9 @@ static inline uint32_t bsf_mv(const HEVCRpiContext * const s,
     unsigned int a = 0;
 
     s->hevcdsp.hevc_deblocking_boundary_strengths(rep, dup,
-            sizeof(MvField) * mvf_stride, 1,
+            mvf_p, mvf_q,
             rpl_p[0].list, rpl_p[1].list, rpl_q[0].list, rpl_q[1].list,
-            mvf_p, mvf_q, res);
+            sizeof(MvField) * mvf_stride, res);
 
     for (i = 0; i != rep * dup; ++i) {
         a |= res[i] << (i * 2);
