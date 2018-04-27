@@ -949,19 +949,10 @@ static inline uint32_t bsf_mv(const HEVCRpiContext * const s,
                               const RefPicList * const rpl_p, const RefPicList * const rpl_q,
                               const MvField * const mvf_p, const MvField * const mvf_q)
 {
-    uint8_t res[16];
-    unsigned int i;
-    unsigned int a = 0;
-
-    s->hevcdsp.hevc_deblocking_boundary_strengths(rep, dup,
+    return s->hevcdsp.hevc_deblocking_boundary_strengths(rep, dup,
             mvf_p, mvf_q,
             rpl_p[0].list, rpl_p[1].list, rpl_q[0].list, rpl_q[1].list,
-            sizeof(MvField) * mvf_stride, res);
-
-    for (i = 0; i != rep * dup; ++i) {
-        a |= res[i] << (i * 2);
-    }
-    return a;
+            sizeof(MvField) * mvf_stride);
 }
 
 
