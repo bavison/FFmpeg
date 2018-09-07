@@ -67,7 +67,7 @@ static av_always_inline int get_cabac_inline_arm(CABACContext *c,
         "strb    %[mlps_tables], [%[state]]               \n\t"
         "rbit    %[state], %[low]                         \n\t"
         "cmp     %[tmp1], %[ptr]                          \n\t"
-#if CONFIG_THUMB
+#if CONFIG_THUMB || defined(__clang__)
         "it      cs                                       \n\t"
         "ldrhcs  %[tmp1], [%[ptr]], #2                    \n\t"
 #else
@@ -138,7 +138,7 @@ static inline int get_cabac_bypass_arm(CABACContext * const c)
         "ldrh       %[tmp]   , [%[ptr]], #2         \n\t"
 #else
         "cmp        %[tmp]   , %[ptr]               \n\t"
-#if CONFIG_THUMB
+#if CONFIG_THUMB || defined(__clang__)
         "it         cs                              \n\t"
         "ldrhcs     %[tmp]   , [%[ptr]], #2         \n\t"
 #else
@@ -194,7 +194,7 @@ static inline int get_cabac_bypass_sign_arm(CABACContext * const c, int rv)
         "ldrh       %[tmp]   , [%[ptr]], #2         \n\t"
 #else
         "cmp        %[tmp]   , %[ptr]               \n\t"
-#if CONFIG_THUMB
+#if CONFIG_THUMB || defined(__clang__)
         "it         cs                              \n\t"
         "ldrhcs     %[tmp]   , [%[ptr]], #2         \n\t"
 #else

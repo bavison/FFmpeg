@@ -200,7 +200,7 @@ typedef struct rpi_display_env_s
     MMAL_CONNECTION_T * conn;
 
     MMAL_POOL_T *rpi_pool;
-    volatile int rpi_display_count;
+    volatile atomic_int rpi_display_count;
     enum AVPixelFormat avfmt;
 } rpi_display_env_t;
 

@@ -213,7 +213,7 @@ static inline uint8_t * get_cabac_sig_coeff_flag_idxs_arm(CABACContext * const c
          "ldrb       %[st]         , [%[ctx_map], #-1]!          \n\t"
          "lsl        %[low]        , %[low]      , %[tmp]        \n\t"
 // GCC asm seems to need strbne written differently for thumb and arm
-#if CONFIG_THUMB
+#if CONFIG_THUMB || defined(__clang__)
          "it         ne                                          \n\t"
          "strbne     %[n]          , [%[idx]]    , #1            \n\t"
 #else
@@ -224,7 +224,7 @@ static inline uint8_t * get_cabac_sig_coeff_flag_idxs_arm(CABACContext * const c
 // branch and then working out what that meant later
          "subs       %[n]          , %[n]        , #1            \n\t"
          "lsl        %[range]      , %[range]    , %[tmp]        \n\t"
-#if CONFIG_THUMB
+#if CONFIG_THUMB || defined(__clang__)
          "itt        ne                                          \n\t"
          "lslsne     %[tmp]        , %[low]      , #16           \n\t"
 #else

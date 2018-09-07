@@ -612,7 +612,7 @@ typedef struct HEVCRpiJobCtl
 
 typedef struct HEVCRpiJobGlobal
 {
-    intptr_t ref_count;
+    atomic_intptr_t ref_count;
     pthread_mutex_t lock;
     HEVCRpiJob * free1;                 // Singly linked list of free jobs
     HEVCRpiLocalContext * wait_head;       // Double linked list of lcs waiting for a job
