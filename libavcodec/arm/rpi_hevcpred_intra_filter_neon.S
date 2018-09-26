@@ -585,9 +585,9 @@ function ff_hevc_rpi_intra_filter_16_neon_16, export=1
 10:     cmp        r9, #8
         bhi        12f
         beq        11f
-        vdup.16    d21, d20[3]
-11:     vdup.16    d22, d21[3]
-12:     vdup.16    d23, d22[3]
+        vdup.16    d23, d22[3]
+11:     vdup.16    d24, d23[3]
+12:     vdup.16    d25, d24[3]
         b          1b
 
 20:     vmov       q0, q2
